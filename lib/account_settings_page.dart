@@ -1,6 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
-
+import 'main.dart';
 import 'auth.dart';
 import 'login_page.dart';
 
@@ -46,6 +46,10 @@ class _AccountSettingsPageState extends State<AccountSettingsPage> {
         _locationController.text = _profile!['location'] ?? '';
         _notificationsEnabled = _profile!['notificationsEnabled'] ?? true;
         _darkModeEnabled = _profile!['darkModeEnabled'] ?? false;
+
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          MyApp.of(context)?.toggleDarkMode(_darkModeEnabled);
+      });
         _language = _profile!['language'] ?? 'English';
       }
       _isLoading = false;
@@ -335,6 +339,8 @@ class _AccountSettingsPageState extends State<AccountSettingsPage> {
                                     setState(() {
                                       _darkModeEnabled = value;
                                     });
+
+                                    MyApp.of(context)?.toggleDarkMode(value);
                                   },
                                   activeThumbColor: Colors.purple,
                                 ),
