@@ -1,14 +1,22 @@
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
+import 'auth.dart';
+import 'firebase_options.dart';
+import 'landowner_dashboard.dart';
 import 'login_page.dart';
+import 'worker_dashboard.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
   runApp(const MyApp());
 }
 
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
-  // This widget is the root of your application.
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
@@ -16,7 +24,62 @@ class MyApp extends StatelessWidget {
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
       ),
-      home: const LoginPage(),
+      home: const AuthGate(),
+    );
+  }
+}
+
+class AuthGate extends StatelessWidget {
+  const AuthGate({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder(
+      stream: AuthService.authStateChanges(),
+      builder: (context, snapshot) {
+        print('AuthGate: Auth state changed - ConnectionState: ${snapshot.connectionState}, HasData: ${snapshot.hasData}, User: ${snapshot.data?.uid ?? "null"}');
+
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Scaffold(
+            body: Center(child: CircularProgressIndicator()),
+          );
+        }
+
+        if (!snapshot.hasData) {
+          print('AuthGate: No user data, showing LoginPage');
+          return const LoginPage();
+        }
+
+        print('AuthGate: User authenticated, fetching role...');
+        return FutureBuilder<String?>(
+          future: () async {
+            // Ensure user document exists before trying to get role
+            await AuthService.ensureCurrentUserDocumentExists();
+            return AuthService.getCurrentUserRole();
+          }(),
+          builder: (context, roleSnapshot) {
+            if (roleSnapshot.connectionState == ConnectionState.waiting) {
+              return const Scaffold(
+                body: Center(child: CircularProgressIndicator()),
+              );
+            }
+
+            final role = roleSnapshot.data;
+            print('AuthGate: User role retrieved: $role');
+
+            if (role == 'worker') {
+              print('AuthGate: Navigating to WorkerDashboard');
+              return const WorkerDashboard();
+            } else if (role == 'landowner') {
+              print('AuthGate: Navigating to LandownerDashboard');
+              return const LandownerDashboard();
+            }
+
+            print('AuthGate: No valid role found, showing LoginPage');
+            return const LoginPage();
+          },
+        );
+      },
     );
   }
 }
