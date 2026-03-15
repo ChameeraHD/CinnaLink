@@ -13,6 +13,7 @@ class _JobPostingPageState extends State<JobPostingPage> {
   final _descriptionController = TextEditingController();
   final _locationController = TextEditingController();
   final _wageController = TextEditingController();
+
   DateTime _selectedDate = DateTime.now();
 
   Future<void> _selectDate(BuildContext context) async {
