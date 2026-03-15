@@ -13,7 +13,9 @@ class _JobPostingPageState extends State<JobPostingPage> {
   final _descriptionController = TextEditingController();
   final _locationController = TextEditingController();
   final _wageController = TextEditingController();
+  final _workersController = TextEditingController();
 
+  String? _jobType;
   DateTime _selectedDate = DateTime.now();
 
   Future<void> _selectDate(BuildContext context) async {
@@ -41,6 +43,7 @@ class _JobPostingPageState extends State<JobPostingPage> {
       _descriptionController.clear();
       _locationController.clear();
       _wageController.clear();
+      _workersController.clear();
       setState(() {
         _selectedDate = DateTime.now();
       });
@@ -101,9 +104,40 @@ class _JobPostingPageState extends State<JobPostingPage> {
                               filled: true,
                               fillColor: Colors.grey[50],
                             ),
+                          ),
+
+                          const SizedBox(height: 16),
+                          DropdownButtonFormField<String>(
+                            value: _jobType,
+                            hint: const Text("Select Job Type"),
+                            decoration: InputDecoration(
+                              labelText: 'Job Type',
+                              prefixIcon: Icon(Icons.category),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                            items:
+                                [
+                                  'Cinnamon Cutting',
+                                  'Cinnamon Peeling',
+                                  'Cinnamon Scraping',
+                                  'Cinnamon Rolling',
+                                ].map((job) {
+                                  return DropdownMenuItem(
+                                    value: job,
+                                    child: Text(job),
+                                  );
+                                }).toList(),
+                            onChanged: (value) {
+                              setState(() {
+                                _jobType = value;
+                              });
+                            },
+
                             validator: (value) {
-                              if (value == null || value.isEmpty) {
-                                return 'Please enter a job title';
+                              if (value == null) {
+                                return 'Please select a job type';
                               }
                               return null;
                             },
@@ -142,9 +176,22 @@ class _JobPostingPageState extends State<JobPostingPage> {
                               filled: true,
                               fillColor: Colors.grey[50],
                             ),
+                          ),
+                          const SizedBox(height: 16),
+                          TextFormField(
+                            controller: _workersController,
+                            keyboardType: TextInputType.number,
+                            decoration: InputDecoration(
+                              labelText: 'Number of Workers Needed',
+                              prefixIcon: Icon(Icons.group),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+
                             validator: (value) {
                               if (value == null || value.isEmpty) {
-                                return 'Please enter a location';
+                                return 'Enter number of workers';
                               }
                               return null;
                             },
