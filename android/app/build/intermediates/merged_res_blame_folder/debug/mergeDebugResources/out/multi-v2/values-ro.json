@@ -1,0 +1,87 @@
+{
+    "logs": [
+        {
+            "outputFile": "com.example.cinnalink.app-mergeDebugResources-40:/values-ro/values-ro.xml",
+            "map": [
+                {
+                    "source": "C:\\Users\\VICTUS\\.gradle\\caches\\8.14\\transforms\\411ec41560d33f23c5c50669f0ca672f\\transformed\\play-services-base-18.9.0\\res\\values-ro\\values.xml",
+                    "from": {
+                        "startLines": "4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20",
+                        "startColumns": "0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0",
+                        "startOffsets": "216,320,476,602,708,855,981,1100,1205,1363,1470,1625,1754,1896,2058,2123,2187",
+                        "endColumns": "103,155,125,105,146,125,118,104,157,106,154,128,141,161,64,63,78",
+                        "endOffsets": "319,475,601,707,854,980,1099,1204,1362,1469,1624,1753,1895,2057,2122,2186,2265"
+                    },
+                    "to": {
+                        "startLines": "11,12,13,14,15,16,17,18,20,21,22,23,24,25,26,27,28",
+                        "startColumns": "4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4",
+                        "startOffsets": "1013,1121,1281,1411,1521,1672,1802,1925,2178,2340,2451,2610,2743,2889,3055,3124,3192",
+                        "endColumns": "107,159,129,109,150,129,122,108,161,110,158,132,145,165,68,67,82",
+                        "endOffsets": "1116,1276,1406,1516,1667,1797,1920,2029,2335,2446,2605,2738,2884,3050,3119,3187,3270"
+                    }
+                },
+                {
+                    "source": "C:\\Users\\VICTUS\\.gradle\\caches\\8.14\\transforms\\e606b5a47a71e0c6d544bfb79522471d\\transformed\\credentials-1.2.0-rc01\\res\\values-ro\\values-ro.xml",
+                    "from": {
+                        "startLines": "2,3",
+                        "startColumns": "4,4",
+                        "startOffsets": "55,165",
+                        "endColumns": "109,120",
+                        "endOffsets": "160,281"
+                    }
+                },
+                {
+                    "source": "C:\\Users\\VICTUS\\.gradle\\caches\\8.14\\transforms\\b1abedf859501f3f53b827747da52e11\\transformed\\browser-1.4.0\\res\\values-ro\\values-ro.xml",
+                    "from": {
+                        "startLines": "2,3,4,5",
+                        "startColumns": "4,4,4,4",
+                        "startOffsets": "55,162,264,379",
+                        "endColumns": "106,101,114,104",
+                        "endOffsets": "157,259,374,479"
+                    },
+                    "to": {
+                        "startLines": "29,30,31,32",
+                        "startColumns": "4,4,4,4",
+                        "startOffsets": "3275,3382,3484,3599",
+                        "endColumns": "106,101,114,104",
+                        "endOffsets": "3377,3479,3594,3699"
+                    }
+                },
+                {
+                    "source": "C:\\Users\\VICTUS\\.gradle\\caches\\8.14\\transforms\\22f47d4b53c689fc397e127610d8b97f\\transformed\\play-services-basement-18.9.0\\res\\values-ro\\values.xml",
+                    "from": {
+                        "startLines": "4",
+                        "startColumns": "0",
+                        "startOffsets": "218",
+                        "endColumns": "139",
+                        "endOffsets": "357"
+                    },
+                    "to": {
+                        "startLines": "19",
+                        "startColumns": "4",
+                        "startOffsets": "2034",
+                        "endColumns": "143",
+                        "endOffsets": "2173"
+                    }
+                },
+                {
+                    "source": "C:\\Users\\VICTUS\\.gradle\\caches\\8.14\\transforms\\8cb437de8fdac72e2de918f9ee215ca3\\transformed\\core-1.13.1\\res\\values-ro\\values-ro.xml",
+                    "from": {
+                        "startLines": "2,3,4,5,6,7,8,9",
+                        "startColumns": "4,4,4,4,4,4,4,4",
+                        "startOffsets": "55,153,255,355,454,556,665,782",
+                        "endColumns": "97,101,99,98,101,108,116,100",
+                        "endOffsets": "148,250,350,449,551,660,777,878"
+                    },
+                    "to": {
+                        "startLines": "4,5,6,7,8,9,10,33",
+                        "startColumns": "4,4,4,4,4,4,4,4",
+                        "startOffsets": "286,384,486,586,685,787,896,3704",
+                        "endColumns": "97,101,99,98,101,108,116,100",
+                        "endOffsets": "379,481,581,680,782,891,1008,3800"
+                    }
+                }
+            ]
+        }
+    ]
+}

@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "109816632883",
+    "project_id": "cinnalink-738f5",
+    "storage_bucket": "cinnalink-738f5.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:109816632883:android:44f000270f7e2d5ae53546",
+        "android_client_info": {
+          "package_name": "com.example.cinnalink"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCBZSnahNQPBymrDg-Iq5usnNUhcLck9HU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

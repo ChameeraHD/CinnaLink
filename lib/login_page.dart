@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
-import 'worker_dashboard.dart';
-import 'landowner_dashboard.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'auth.dart';
+import 'register_page.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -10,26 +11,55 @@ class LoginPage extends StatefulWidget {
 }
 
 class _LoginPageState extends State<LoginPage> {
-  final TextEditingController _usernameController = TextEditingController();
+  final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
+  bool _isLoading = false;
 
-  void _login() {
-    String username = _usernameController.text.trim();
-    if (username == 'worker') {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (context) => const WorkerDashboard()),
+  Future<void> _login() async {
+    final messenger = ScaffoldMessenger.of(context);
+    final email = _emailController.text.trim();
+    final password = _passwordController.text;
+
+    if (email.isEmpty || password.isEmpty) {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Please enter email and password.')),
       );
-    } else if (username == 'landowner') {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (context) => const LandownerDashboard()),
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      print('LoginPage: Attempting to sign in with email: $email');
+      await AuthService.signInWithEmailPassword(email: email, password: password);
+      print('LoginPage: Sign in completed successfully');
+      // Ensure user document exists
+      await AuthService.ensureCurrentUserDocumentExists();
+      // AuthGate handles navigation based on the user's role.
+    } on FirebaseAuthException catch (e) {
+      print('LoginPage: Firebase Auth Exception: ${e.code} - ${e.message}');
+      final message = switch (e.code) {
+        'user-not-found' => 'No user found for that email.',
+        'wrong-password' => 'Wrong password provided.',
+        'invalid-email' => 'Please enter a valid email.',
+        _ => 'Login failed. Please try again.',
+      };
+      messenger.showSnackBar(
+        SnackBar(content: Text(message)),
       );
-    } else {
-      // Show error message
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Invalid username')),
+    } catch (e) {
+      print('LoginPage: Unexpected error during login: $e');
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Login failed. Please try again.')),
       );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 
@@ -81,10 +111,11 @@ class _LoginPageState extends State<LoginPage> {
                     ),
                     const SizedBox(height: 32),
                     TextField(
-                      controller: _usernameController,
+                      controller: _emailController,
+                      keyboardType: TextInputType.emailAddress,
                       decoration: InputDecoration(
-                        labelText: 'Username',
-                        prefixIcon: const Icon(Icons.person),
+                        labelText: 'Email',
+                        prefixIcon: const Icon(Icons.email),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),
@@ -111,7 +142,7 @@ class _LoginPageState extends State<LoginPage> {
                       width: double.infinity,
                       height: 50,
                       child: ElevatedButton(
-                        onPressed: _login,
+                        onPressed: _isLoading ? null : _login,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.blueAccent,
                           shape: RoundedRectangleBorder(
@@ -119,15 +150,26 @@ class _LoginPageState extends State<LoginPage> {
                           ),
                           elevation: 4,
                         ),
-                        child: const Text(
-                          'Login',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                          ),
-                        ),
+                        child: _isLoading
+                            ? const CircularProgressIndicator(color: Colors.white)
+                            : const Text(
+                                'Login',
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                ),
+                              ),
                       ),
+                    ),
+                    const SizedBox(height: 12),
+                    TextButton(
+                      onPressed: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(builder: (context) => const RegisterPage()),
+                        );
+                      },
+                      child: const Text("Don't have an account? Register now"),
                     ),
                   ],
                 ),
