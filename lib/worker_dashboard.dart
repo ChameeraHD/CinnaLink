@@ -72,6 +72,56 @@ class _FindJobsPageState extends State<FindJobsPage> {
     return '${date.year}-$month-$day';
   }
 
+  Widget _buildLandownerRating(String landownerId) {
+    return FutureBuilder<Map<String, dynamic>>(
+      future: JobRepository.getLandownerMetrics(landownerId),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const SizedBox(
+            height: 20,
+            child: Padding(
+              padding: EdgeInsets.symmetric(vertical: 4),
+              child: Text(
+                'Loading rating...',
+                style: TextStyle(fontSize: 12, color: Colors.grey),
+              ),
+            ),
+          );
+        }
+
+        if (snapshot.hasError) {
+          return const SizedBox(height: 0);
+        }
+
+        final metrics = snapshot.data ?? {};
+        final avgRating = (metrics['averageRating'] as num?)?.toDouble() ?? 0;
+        final totalRatings = (metrics['totalRatings'] as num?)?.toInt() ?? 0;
+
+        if (avgRating == 0) {
+          return const SizedBox(height: 0);
+        }
+
+        return Row(
+          children: [
+            ...List.generate(
+              5,
+              (index) => Icon(
+                Icons.star,
+                size: 16,
+                color: index < avgRating.round() ? Colors.amber : Colors.grey[300],
+              ),
+            ),
+            const SizedBox(width: 6),
+            Text(
+              '${avgRating.toStringAsFixed(1)} ($totalRatings)',
+              style: const TextStyle(fontSize: 12, color: Colors.grey),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   Future<void> _applyForJob(JobRecord job) async {
     final workerId = AuthService.currentUserId;
     if (workerId == null) {
@@ -273,6 +323,8 @@ class _FindJobsPageState extends State<FindJobsPage> {
                                     color: Colors.grey,
                                   ),
                                 ),
+                                const SizedBox(height: 6),
+                                _buildLandownerRating(job.landownerId),
                                 const SizedBox(height: 16),
                                 SizedBox(
                                   width: double.infinity,
@@ -545,6 +597,17 @@ class _ApprovedJobsPageState extends State<ApprovedJobsPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Job marked as completed.')),
       );
+
+      await Future.delayed(const Duration(milliseconds: 500));
+
+      if (!mounted) {
+        return;
+      }
+
+      await _showRatingDialog(
+        workerId: workerId,
+        applicationId: applicationId,
+      );
     } catch (error) {
       if (!mounted) {
         return;
@@ -559,6 +622,121 @@ class _ApprovedJobsPageState extends State<ApprovedJobsPage> {
         });
       }
     }
+  }
+
+  Future<void> _showRatingDialog({
+    required String workerId,
+    required String applicationId,
+  }) async {
+    final appRef = FirebaseFirestore.instance
+        .collection('applications')
+        .doc(applicationId);
+    final appSnapshot = await appRef.get();
+    final appData = appSnapshot.data() ?? <String, dynamic>{};
+
+    final landownerId = appData['landownerId'] as String? ?? '';
+    final landownerName = appData['landownerName'] as String? ?? 'Landowner';
+    final workerProfile = await AuthService.getCurrentUserProfile();
+    final workerName = (workerProfile?['name'] as String?) ?? 'Worker';
+
+    if (!mounted) {
+      return;
+    }
+
+    final ratingController = TextEditingController();
+    double selectedRating = 5.0;
+
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: const Text('Rate This Job'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text('How would you rate working with $landownerName?'),
+                  const SizedBox(height: 16),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: List.generate(5, (index) {
+                      final starRating = index + 1.0;
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 4),
+                        child: GestureDetector(
+                          onTap: () {
+                            setDialogState(() {
+                              selectedRating = starRating;
+                            });
+                          },
+                          child: Icon(
+                            Icons.star,
+                            size: 36,
+                            color: starRating <= selectedRating
+                                ? Colors.amber
+                                : Colors.grey[300],
+                          ),
+                        ),
+                      );
+                    }),
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: ratingController,
+                    maxLines: 3,
+                    decoration: const InputDecoration(
+                      labelText: 'Feedback (optional)',
+                      hintText: 'Share your experience...',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: const Text('Skip'),
+                ),
+                ElevatedButton(
+                  onPressed: () async {
+                    try {
+                      await JobRepository.submitRating(
+                        fromUserId: workerId,
+                        fromUserName: workerName,
+                        toUserId: landownerId,
+                        toUserName: landownerName,
+                        jobId: applicationId,
+                        rating: selectedRating,
+                        feedback: ratingController.text.trim(),
+                      );
+
+                      if (!mounted) {
+                        return;
+                      }
+
+                      Navigator.of(context).pop();
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Rating submitted. Thank you!')),
+                      );
+                    } catch (error) {
+                      if (!mounted) {
+                        return;
+                      }
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text(_readableError(error))),
+                      );
+                    }
+                  },
+                  child: const Text('Submit Rating'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
   }
 
   Widget _buildProgressHistory(String applicationId) {

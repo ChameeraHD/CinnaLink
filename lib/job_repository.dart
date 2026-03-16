@@ -154,6 +154,47 @@ class TaskProgressRecord {
   }
 }
 
+class RatingRecord {
+  RatingRecord({
+    required this.id,
+    required this.fromUserId,
+    required this.fromUserName,
+    required this.toUserId,
+    required this.toUserName,
+    required this.jobId,
+    required this.rating,
+    required this.feedback,
+    required this.createdAt,
+  });
+
+  final String id;
+  final String fromUserId;
+  final String fromUserName;
+  final String toUserId;
+  final String toUserName;
+  final String jobId;
+  final double rating;
+  final String feedback;
+  final DateTime? createdAt;
+
+  factory RatingRecord.fromSnapshot(
+    DocumentSnapshot<Map<String, dynamic>> snapshot,
+  ) {
+    final data = snapshot.data() ?? <String, dynamic>{};
+    return RatingRecord(
+      id: snapshot.id,
+      fromUserId: (data['fromUserId'] as String?) ?? '',
+      fromUserName: (data['fromUserName'] as String?) ?? 'User',
+      toUserId: (data['toUserId'] as String?) ?? '',
+      toUserName: (data['toUserName'] as String?) ?? 'User',
+      jobId: (data['jobId'] as String?) ?? '',
+      rating: ((data['rating'] as num?) ?? 0).toDouble(),
+      feedback: (data['feedback'] as String?) ?? '',
+      createdAt: (data['createdAt'] as Timestamp?)?.toDate(),
+    );
+  }
+}
+
 class JobRepository {
   JobRepository._();
 
@@ -172,6 +213,9 @@ class JobRepository {
 
   static CollectionReference<Map<String, dynamic>> get _taskProgressCollection =>
       _firestore.collection('task_progress');
+
+  static CollectionReference<Map<String, dynamic>> get _ratingsCollection =>
+      _firestore.collection('ratings');
 
   static DateTime _decisionDeadlineFromNow() {
     return DateTime.now().add(_approvalDecisionWindow);
@@ -651,5 +695,99 @@ class JobRepository {
     }
 
     await batch.commit();
+  }
+
+  static Future<void> submitRating({
+    required String fromUserId,
+    required String fromUserName,
+    required String toUserId,
+    required String toUserName,
+    required String jobId,
+    required double rating,
+    required String feedback,
+  }) async {
+    if (rating < 1 || rating > 5) {
+      throw StateError('Rating must be between 1 and 5.');
+    }
+
+    final now = FieldValue.serverTimestamp();
+    await _firestore.runTransaction((transaction) async {
+      final ratingRef = _ratingsCollection.doc();
+      transaction.set(ratingRef, {
+        'fromUserId': fromUserId,
+        'fromUserName': fromUserName,
+        'toUserId': toUserId,
+        'toUserName': toUserName,
+        'jobId': jobId,
+        'rating': rating,
+        'feedback': feedback,
+        'createdAt': now,
+      });
+
+      final toUserRef = _firestore.collection('users').doc(toUserId);
+      final toUserSnapshot = await transaction.get(toUserRef);
+      final toUserData = toUserSnapshot.data();
+
+      if (toUserData != null) {
+        final currentRatings =
+            ((toUserData['totalRatings'] as num?) ?? 0).toDouble();
+        final currentRatingSum =
+            ((toUserData['totalRatingSum'] as num?) ?? 0).toDouble();
+        final newTotal = currentRatings + 1;
+        final newSum = currentRatingSum + rating;
+        final newAverage = newSum / newTotal;
+
+        transaction.update(toUserRef, {
+          'totalRatings': newTotal,
+          'totalRatingSum': newSum,
+          'averageRating': newAverage,
+          'updatedAt': now,
+        });
+      }
+    });
+  }
+
+  static Future<Map<String, dynamic>> getWorkerMetrics(String workerId) async {
+    final applicationsSnapshot = await _applicationsCollection
+        .where('workerId', isEqualTo: workerId)
+        .where('status', isEqualTo: 'completed')
+        .get();
+
+    final completedCount = applicationsSnapshot.docs.length;
+
+    final userSnapshot =
+        await _firestore.collection('users').doc(workerId).get();
+    final userData = userSnapshot.data() ?? <String, dynamic>{};
+
+    final averageRating = ((userData['averageRating'] as num?) ?? 0).toDouble();
+
+    return {
+      'completedJobsCount': completedCount,
+      'averageRating': averageRating,
+      'totalRatings': ((userData['totalRatings'] as num?) ?? 0).toInt(),
+    };
+  }
+
+  static Future<Map<String, dynamic>> getLandownerMetrics(
+    String landownerId,
+  ) async {
+    final jobsSnapshot = await _jobsCollection
+        .where('landownerId', isEqualTo: landownerId)
+        .where('status', isEqualTo: 'closed')
+        .get();
+
+    final completedJobsCount = jobsSnapshot.docs.length;
+
+    final userSnapshot =
+        await _firestore.collection('users').doc(landownerId).get();
+    final userData = userSnapshot.data() ?? <String, dynamic>{};
+
+    final averageRating = ((userData['averageRating'] as num?) ?? 0).toDouble();
+
+    return {
+      'completedJobsCount': completedJobsCount,
+      'averageRating': averageRating,
+      'totalRatings': ((userData['totalRatings'] as num?) ?? 0).toInt(),
+    };
   }
 }
