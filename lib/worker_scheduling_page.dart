@@ -110,6 +110,47 @@ class _WorkerSchedulingPageState extends State<WorkerSchedulingPage> {
     );
   }
 
+  Widget _buildWorkerRating(String workerId) {
+    return FutureBuilder<Map<String, dynamic>>(
+      future: JobRepository.getWorkerMetrics(workerId),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const SizedBox(height: 0);
+        }
+
+        if (snapshot.hasError || !snapshot.hasData) {
+          return const SizedBox(height: 0);
+        }
+
+        final metrics = snapshot.data ?? {};
+        final avgRating = (metrics['averageRating'] as num?)?.toDouble() ?? 0;
+        final totalRatings = (metrics['totalRatings'] as num?)?.toInt() ?? 0;
+
+        if (avgRating == 0) {
+          return const SizedBox(height: 0);
+        }
+
+        return Row(
+          children: [
+            ...List.generate(
+              5,
+              (index) => Icon(
+                Icons.star,
+                size: 14,
+                color: index < avgRating.round() ? Colors.amber : Colors.grey[300],
+              ),
+            ),
+            const SizedBox(width: 4),
+            Text(
+              '${avgRating.toStringAsFixed(1)} ($totalRatings)',
+              style: const TextStyle(fontSize: 11, color: Colors.grey),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   Widget _buildApplicationList(JobRecord job) {
     return StreamBuilder<List<WorkerApplicationRecord>>(
       stream: JobRepository.streamApplicationsForJob(job.id),
@@ -185,6 +226,8 @@ class _WorkerSchedulingPageState extends State<WorkerSchedulingPage> {
                                 application.workerPhone,
                                 style: TextStyle(color: Colors.grey[600]),
                               ),
+                            const SizedBox(height: 4),
+                            _buildWorkerRating(application.workerId),
                           ],
                         ),
                       ),
