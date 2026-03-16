@@ -1,4 +1,7 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'auth.dart';
 
 class JobPostingPage extends StatefulWidget {
   const JobPostingPage({super.key});
@@ -17,6 +20,7 @@ class _JobPostingPageState extends State<JobPostingPage> {
 
   String? _jobType;
   DateTime _selectedDate = DateTime.now();
+  bool _isSubmitting = false;
 
   Future<void> _selectDate(BuildContext context) async {
     final DateTime? picked = await showDatePicker(
@@ -32,21 +36,58 @@ class _JobPostingPageState extends State<JobPostingPage> {
     }
   }
 
-  void _submitJob() {
+  Future<void> _submitJob() async {
     if (_formKey.currentState!.validate()) {
-      // Here you would typically send the job data to your backend
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Job posted successfully!')));
-      // Clear form
-      _jobTitleController.clear();
-      _descriptionController.clear();
-      _locationController.clear();
-      _wageController.clear();
-      _workersController.clear();
       setState(() {
-        _selectedDate = DateTime.now();
+        _isSubmitting = true;
       });
+
+      try {
+        final user = FirebaseAuth.instance.currentUser;
+        final profile = await AuthService.getCurrentUserProfile();
+        
+        await FirebaseFirestore.instance.collection('jobs').add({
+          'title': _jobTitleController.text.trim(),
+          'jobType': _jobType,
+          'description': _descriptionController.text.trim(),
+          'location': _locationController.text.trim(),
+          'workersNeeded': int.parse(_workersController.text),
+          'wage': _wageController.text.trim(),
+          'startDate': Timestamp.fromDate(_selectedDate),
+          'postedByUid': user?.uid,
+          'postedByName': profile?['name'] ?? 'Landowner',
+          'createdAt': FieldValue.serverTimestamp(),
+          'status': 'open',
+        });
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Job posted successfully!')),
+          );
+          // Clear form
+          _jobTitleController.clear();
+          _descriptionController.clear();
+          _locationController.clear();
+          _wageController.clear();
+          _workersController.clear();
+          setState(() {
+            _jobType = null;
+            _selectedDate = DateTime.now();
+          });
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Failed to post job: $e')),
+          );
+        }
+      } finally {
+        if (mounted) {
+          setState(() {
+            _isSubmitting = false;
+          });
+        }
+      }
     }
   }
 
@@ -104,6 +145,7 @@ class _JobPostingPageState extends State<JobPostingPage> {
                               filled: true,
                               fillColor: Colors.grey[50],
                             ),
+                            validator: (value) => value == null || value.isEmpty ? 'Please enter a job title' : null,
                           ),
 
                           const SizedBox(height: 16),
@@ -112,7 +154,7 @@ class _JobPostingPageState extends State<JobPostingPage> {
                             hint: const Text("Select Job Type"),
                             decoration: InputDecoration(
                               labelText: 'Job Type',
-                              prefixIcon: Icon(Icons.category),
+                              prefixIcon: const Icon(Icons.category),
                               border: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(12),
                               ),
@@ -176,6 +218,7 @@ class _JobPostingPageState extends State<JobPostingPage> {
                               filled: true,
                               fillColor: Colors.grey[50],
                             ),
+                            validator: (value) => value == null || value.isEmpty ? 'Please enter a location' : null,
                           ),
                           const SizedBox(height: 16),
                           TextFormField(
@@ -183,7 +226,7 @@ class _JobPostingPageState extends State<JobPostingPage> {
                             keyboardType: TextInputType.number,
                             decoration: InputDecoration(
                               labelText: 'Number of Workers Needed',
-                              prefixIcon: Icon(Icons.group),
+                              prefixIcon: const Icon(Icons.group),
                               border: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(12),
                               ),
@@ -192,6 +235,9 @@ class _JobPostingPageState extends State<JobPostingPage> {
                             validator: (value) {
                               if (value == null || value.isEmpty) {
                                 return 'Enter number of workers';
+                              }
+                              if (int.tryParse(value) == null) {
+                                return 'Enter a valid number';
                               }
                               return null;
                             },
@@ -202,7 +248,7 @@ class _JobPostingPageState extends State<JobPostingPage> {
                             keyboardType: TextInputType.number,
                             decoration: InputDecoration(
                               labelText: 'Payment',
-                              prefixIcon: const Icon(Icons.currency_bitcoin),
+                              prefixIcon: const Icon(Icons.currency_rupee),
                               border: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(12),
                               ),
@@ -212,9 +258,6 @@ class _JobPostingPageState extends State<JobPostingPage> {
                             validator: (value) {
                               if (value == null || value.isEmpty) {
                                 return 'Please enter a wage amount';
-                              }
-                              if (double.tryParse(value) == null) {
-                                return 'Please enter a valid number';
                               }
                               return null;
                             },
@@ -243,7 +286,7 @@ class _JobPostingPageState extends State<JobPostingPage> {
                             width: double.infinity,
                             height: 50,
                             child: ElevatedButton(
-                              onPressed: _submitJob,
+                              onPressed: _isSubmitting ? null : _submitJob,
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: Colors.green,
                                 shape: RoundedRectangleBorder(
@@ -251,14 +294,16 @@ class _JobPostingPageState extends State<JobPostingPage> {
                                 ),
                                 elevation: 4,
                               ),
-                              child: const Text(
-                                'Post Job',
-                                style: TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.white,
-                                ),
-                              ),
+                              child: _isSubmitting 
+                                ? const CircularProgressIndicator(color: Colors.white)
+                                : const Text(
+                                    'Post Job',
+                                    style: TextStyle(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.white,
+                                    ),
+                                  ),
                             ),
                           ),
                         ],
