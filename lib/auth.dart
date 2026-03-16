@@ -7,6 +7,10 @@ class AuthService {
   static final FirebaseAuth _auth = FirebaseAuth.instance;
   static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
+  static User? get currentUser => _auth.currentUser;
+
+  static String? get currentUserId => _auth.currentUser?.uid;
+
   /// Stream of authentication state changes.
   static Stream<User?> authStateChanges() => _auth.authStateChanges();
 
