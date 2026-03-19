@@ -47,7 +47,7 @@ class AuthService {
       } else {
         // If document exists, ensure it has a role
         final data = doc.data();
-        if (data != null && (data['role'] == null || !(data['role'] is String) || !(data['role'] == 'worker' || data['role'] == 'landowner'))) {
+        if (data != null && (data['role'] == null || data['role'] is! String || !(data['role'] == 'worker' || data['role'] == 'landowner'))) {
           print('AuthService: User document exists but role is invalid, setting to worker...');
           await docRef.set({
             'role': 'worker',
