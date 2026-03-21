@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cinnalink/l10n/app_localizations.dart'; // Ensure this import exists
 import '../backend/auth.dart';
 import '../backend/job_repository.dart';
+import '../models/job_model.dart';
 
 class JobPostingPage extends StatefulWidget {
   const JobPostingPage({super.key});
@@ -41,6 +42,12 @@ class _JobPostingPageState extends State<JobPostingPage> {
     final l10n = AppLocalizations.of(context)!;
 
     if (!_formKey.currentState!.validate()) {
+      return;
+    }
+    if (_jobType == null) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(l10n.selectJobType)));
       return;
     }
 
@@ -294,9 +301,15 @@ class _JobPostingPageState extends State<JobPostingPage> {
                               filled: true,
                               fillColor: inputFill,
                             ),
-                            validator: (v) => (v == null || v.trim().isEmpty)
-                                ? l10n.errorTitle
-                                : null,
+                            validator: (v) {
+                              if (v == null || v.trim().isEmpty) {
+                                return l10n.errorTitle;
+                              }
+                              if (v.trim().length < 3) {
+                                return "Title must be at least 3 characters";
+                              }
+                              return null;
+                            },
                           ),
                           const SizedBox(height: 16),
                           DropdownButtonFormField<String>(
@@ -344,9 +357,15 @@ class _JobPostingPageState extends State<JobPostingPage> {
                               filled: true,
                               fillColor: inputFill,
                             ),
-                            validator: (v) => (v == null || v.isEmpty)
-                                ? l10n.errorDesc
-                                : null,
+                            validator: (v) {
+                              if (v == null || v.trim().isEmpty) {
+                                return l10n.errorDesc;
+                              }
+                              if (v.trim().length < 10) {
+                                return "Description too short";
+                              }
+                              return null;
+                            },
                           ),
                           const SizedBox(height: 16),
                           TextFormField(
@@ -376,10 +395,14 @@ class _JobPostingPageState extends State<JobPostingPage> {
                               ),
                             ),
                             validator: (v) {
-                              final count = int.tryParse(v ?? '');
-                              return (count == null || count <= 0)
-                                  ? l10n.errorWorkers
-                                  : null;
+                              if (v == null || v.isEmpty) {
+                                return l10n.errorWorkers;
+                              }
+                              final count = int.tryParse(v);
+                              if (count == null || count <= 0) {
+                                return "Enter a valid number of workers";
+                              }
+                              return null;
                             },
                           ),
                           const SizedBox(height: 16),
@@ -397,10 +420,14 @@ class _JobPostingPageState extends State<JobPostingPage> {
                               fillColor: inputFill,
                             ),
                             validator: (v) {
-                              final wage = double.tryParse(v ?? '');
-                              return (wage == null || wage <= 0)
-                                  ? l10n.errorWage
-                                  : null;
+                              if (v == null || v.isEmpty) {
+                                return l10n.errorWage;
+                              }
+                              final wage = double.tryParse(v);
+                              if (wage == null || wage <= 0) {
+                                return "Enter a valid wage amount";
+                              }
+                              return null;
                             },
                           ),
                           const SizedBox(height: 16),
@@ -424,7 +451,9 @@ class _JobPostingPageState extends State<JobPostingPage> {
                             controller: _phoneController,
                             keyboardType: TextInputType.phone,
                             decoration: InputDecoration(
-                              labelText: 'Contact Number',
+                              labelText: AppLocalizations.of(
+                                context,
+                              )!.phoneNumber,
                               hintText: 'e.g. 0771234567',
                               prefixIcon: const Icon(Icons.phone),
                               border: OutlineInputBorder(
@@ -435,10 +464,12 @@ class _JobPostingPageState extends State<JobPostingPage> {
                             ),
                             validator: (value) {
                               if (value == null || value.isEmpty) {
-                                return 'Please enter contact number';
+                                return AppLocalizations.of(
+                                  context,
+                                )!.errorEnterPhone;
                               }
-                              if (value.length != 10) {
-                                return 'Enter valid 10-digit number';
+                              if (!RegExp(r'^[0-9]{10}$').hasMatch(value)) {
+                                return "Enter a valid 10-digit phone number";
                               }
                               return null;
                             },
