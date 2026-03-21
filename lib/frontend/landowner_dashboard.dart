@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'job_posting_page.dart';
 import 'worker_scheduling_page.dart';
+import 'landowner_details_page.dart';
 import 'account_settings_page.dart';
 
 class LandownerDashboard extends StatefulWidget {
@@ -19,6 +20,7 @@ class _LandownerDashboardState extends State<LandownerDashboard> {
     JobPostingPage(),
     WorkerApplicationsPage(),
     WorkerSchedulingPage(),
+    LandownerDetailsPage(),
     AccountSettingsPage(),
   ];
 
@@ -30,17 +32,22 @@ class _LandownerDashboardState extends State<LandownerDashboard> {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final navAccent = isDark ? const Color(0xFFD7A86E) : Colors.brown;
     return Scaffold(
       body: _pages[_selectedIndex],
       bottomNavigationBar: Container(
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           borderRadius: BorderRadius.only(
             topLeft: Radius.circular(20),
             topRight: Radius.circular(20),
           ),
           boxShadow: [
             BoxShadow(
-              color: Colors.black12,
+              color: isDark
+                  ? Colors.black.withValues(alpha: 0.35)
+                  : Colors.black12,
               spreadRadius: 0,
               blurRadius: 10,
             ),
@@ -69,15 +76,20 @@ class _LandownerDashboardState extends State<LandownerDashboard> {
                 label: 'Schedule',
               ),
               BottomNavigationBarItem(
-                icon: Icon(Icons.account_circle_outlined),
-                activeIcon: Icon(Icons.account_circle),
-                label: 'Account',
+                icon: Icon(Icons.person_outline),
+                activeIcon: Icon(Icons.person),
+                label: 'My Details',
+              ),
+              BottomNavigationBarItem(
+                icon: Icon(Icons.settings_outlined),
+                activeIcon: Icon(Icons.settings),
+                label: 'Settings',
               ),
             ],
             currentIndex: _selectedIndex,
-            selectedItemColor: Colors.green,
-            unselectedItemColor: Colors.grey,
-            backgroundColor: Colors.white,
+            selectedItemColor: navAccent,
+            unselectedItemColor: colorScheme.onSurface.withValues(alpha: 0.68),
+            backgroundColor: colorScheme.surface,
             onTap: _onItemTapped,
             type: BottomNavigationBarType.fixed,
             elevation: 0,
