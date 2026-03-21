@@ -7,6 +7,7 @@ import 'backend/auth.dart';
 import 'firebase_options.dart';
 import 'frontend/landowner_dashboard.dart';
 import 'frontend/login_page.dart';
+import 'frontend/email_verification_notice_page.dart';
 import 'frontend/worker_dashboard.dart';
 
 void main() async {
@@ -142,6 +143,7 @@ class AuthGate extends StatelessWidget {
           return const LoginPage();
         }
 
+        final user = snapshot.data;
         final appState = MyApp.of(context);
         return FutureBuilder<String?>(
           future: () async {
@@ -164,6 +166,11 @@ class AuthGate extends StatelessWidget {
               }
             }
 
+            final isVerified = await AuthService.refreshAndSyncEmailVerification();
+            if (!isVerified) {
+              return '__unverified__';
+            }
+
             return AuthService.getCurrentUserRole();
           }(),
           builder: (context, roleSnapshot) {
@@ -172,6 +179,13 @@ class AuthGate extends StatelessWidget {
             }
 
             final role = roleSnapshot.data;
+            if (role == '__unverified__') {
+              return EmailVerificationNoticePage(
+                email: user?.email ?? '',
+                emailSent: AuthService.lastVerificationEmailSent ?? true,
+                errorMessage: AuthService.lastVerificationEmailError,
+              );
+            }
             if (role == 'landowner') return const LandownerDashboard();
             return const WorkerDashboard();
           },

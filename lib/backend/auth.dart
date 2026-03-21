@@ -1,14 +1,17 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
-import 'dart:convert';
-import 'package:http/http.dart' as http;
+
 
 class AuthService {
   AuthService._();
 
-  static const String _projectId = 'cinnalink-738f5';
-  static const String _functionsRegion = 'us-central1';
+  static String? _lastVerificationEmailError;
+  static String? get lastVerificationEmailError => _lastVerificationEmailError;
+  static bool? _lastVerificationEmailSent;
+  static bool? get lastVerificationEmailSent => _lastVerificationEmailSent;
+  static String? _lastPasswordResetError;
+  static String? get lastPasswordResetError => _lastPasswordResetError;
 
   static void _debugLog(String message) {
     if (kDebugMode) {
@@ -111,8 +114,10 @@ class AuthService {
   static Future<UserCredential> registerUser({
     required String name,
     required String email,
+    required String phone,
     required String password,
     required String role,
+    required bool darkModeEnabled,
   }) async {
     _debugLog('AuthService: Starting user registration for $email');
     final credential = await _auth.createUserWithEmailAndPassword(
@@ -127,6 +132,8 @@ class AuthService {
         name: name,
         role: role,
         email: email,
+        phone: phone,
+        darkModeEnabled: darkModeEnabled,
       );
       _debugLog('AuthService: User document set in Firestore');
     } catch (e) {
@@ -141,17 +148,113 @@ class AuthService {
     required String name,
     required String role,
     required String email,
+    required String phone,
+    required bool darkModeEnabled,
   }) async {
     _debugLog('AuthService: Setting user document for UID: $uid');
     await _firestore.collection('users').doc(uid).set({
       'name': name,
       'role': role,
       'email': email,
+      'phone': phone,
       'emailVerified': false,
-      'requiresOtpVerification': true,
+      'darkModeEnabled': darkModeEnabled,
       'createdAt': FieldValue.serverTimestamp(),
       'updatedAt': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));
+  }
+
+  /// Sends Firebase verification link to current user's email.
+  static Future<bool> sendVerificationEmailToCurrentUser() async {
+    final user = _auth.currentUser;
+    if (user == null) {
+      _lastVerificationEmailSent = false;
+      _lastVerificationEmailError = 'No authenticated user found.';
+      return false;
+    }
+
+    _lastVerificationEmailError = null;
+
+    try {
+      await user.sendEmailVerification();
+      _lastVerificationEmailSent = true;
+      _debugLog('AuthService: Verification email sent to ${user.email}');
+      return true;
+    } on FirebaseAuthException catch (e) {
+      _debugLog(
+        'AuthService: Failed to send verification email: code=${e.code} message=${e.message}',
+      );
+      _lastVerificationEmailError = switch (e.code) {
+        'too-many-requests' =>
+          'Too many requests. Please wait a few minutes and try again.',
+        'network-request-failed' =>
+          'Network error while sending verification email.',
+        'invalid-email' => 'Your email address is invalid.',
+        _ => e.message?.isNotEmpty == true
+            ? e.message
+            : 'Could not send verification email right now.',
+      };
+      _lastVerificationEmailSent = false;
+      return false;
+    } catch (e) {
+      _debugLog('AuthService: Failed to send verification email: $e');
+      _lastVerificationEmailError = 'Could not send verification email right now.';
+      _lastVerificationEmailSent = false;
+      return false;
+    }
+  }
+
+  /// Sends password reset email. Password can be changed only via this email link.
+  static Future<bool> sendPasswordResetEmail({required String email}) async {
+    _lastPasswordResetError = null;
+    try {
+      await _auth.sendPasswordResetEmail(email: email);
+      _debugLog('AuthService: Password reset email sent to $email');
+      return true;
+    } on FirebaseAuthException catch (e) {
+      _debugLog(
+        'AuthService: Failed to send password reset email: code=${e.code} message=${e.message}',
+      );
+      _lastPasswordResetError = switch (e.code) {
+        'user-not-found' => 'No account found for that email.',
+        'invalid-email' => 'Please enter a valid email address.',
+        'too-many-requests' =>
+          'Too many requests. Please wait a few minutes and try again.',
+        'network-request-failed' =>
+          'Network error while sending reset email.',
+        _ => e.message?.isNotEmpty == true
+            ? e.message
+            : 'Could not send password reset email right now.',
+      };
+      return false;
+    } catch (e) {
+      _debugLog('AuthService: sendPasswordResetEmail error: $e');
+      _lastPasswordResetError =
+          'Could not send password reset email right now.';
+      return false;
+    }
+  }
+
+  /// Reloads auth user and syncs email verification status into Firestore.
+  static Future<bool> refreshAndSyncEmailVerification() async {
+    final user = _auth.currentUser;
+    if (user == null) return false;
+
+    try {
+      await user.reload();
+      final refreshedUser = _auth.currentUser;
+      final isVerified = refreshedUser?.emailVerified == true;
+
+      await _firestore.collection('users').doc(user.uid).set({
+        'emailVerified': isVerified,
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+
+      return isVerified;
+    } catch (e) {
+      _debugLog('AuthService: Error syncing email verification: $e');
+      return false;
+    }
   }
 
   /// Gets the current user's profile data from Firestore.
@@ -183,63 +286,6 @@ class AuthService {
     }
   }
 
-  static Uri _functionUrl(String functionName) {
-    return Uri.parse(
-      'https://$_functionsRegion-$_projectId.cloudfunctions.net/$functionName',
-    );
-  }
 
-  static Future<bool> sendEmailOtp({
-    required String uid,
-    required String email,
-    required String name,
-  }) async {
-    try {
-      final response = await http.post(
-        _functionUrl('sendEmailOtp'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'uid': uid,
-          'email': email,
-          'name': name,
-        }),
-      );
-
-      if (response.statusCode != 200) {
-        _debugLog('AuthService: sendEmailOtp failed (${response.statusCode})');
-        return false;
-      }
-
-      final body = jsonDecode(response.body) as Map<String, dynamic>;
-      return body['success'] == true;
-    } catch (e) {
-      _debugLog('AuthService: sendEmailOtp error: $e');
-      return false;
-    }
-  }
-
-  static Future<bool> verifyEmailOtp({
-    required String uid,
-    required String otp,
-  }) async {
-    try {
-      final response = await http.post(
-        _functionUrl('verifyEmailOtp'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'uid': uid, 'otp': otp}),
-      );
-
-      if (response.statusCode != 200) {
-        _debugLog('AuthService: verifyEmailOtp failed (${response.statusCode})');
-        return false;
-      }
-
-      final body = jsonDecode(response.body) as Map<String, dynamic>;
-      return body['success'] == true;
-    } catch (e) {
-      _debugLog('AuthService: verifyEmailOtp error: $e');
-      return false;
-    }
-  }
 }
 

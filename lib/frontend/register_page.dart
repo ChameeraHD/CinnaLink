@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'dart:async';
 import '../backend/auth.dart';
-import 'otp_verification_page.dart';
+import 'email_verification_notice_page.dart';
 
 class RegisterPage extends StatefulWidget {
   const RegisterPage({super.key});
@@ -14,6 +14,7 @@ class RegisterPage extends StatefulWidget {
 class _RegisterPageState extends State<RegisterPage> {
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
+  final TextEditingController _phoneController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   final TextEditingController _confirmPasswordController = TextEditingController();
   String _selectedRole = 'worker';
@@ -44,14 +45,23 @@ class _RegisterPageState extends State<RegisterPage> {
 
   Future<void> _register() async {
     final messenger = ScaffoldMessenger.of(context);
+    final isDarkTheme = Theme.of(context).brightness == Brightness.dark;
     final name = _nameController.text.trim();
     final email = _emailController.text.trim();
+    final phone = _phoneController.text.trim();
     final password = _passwordController.text;
     final confirmPassword = _confirmPasswordController.text;
 
-    if (name.isEmpty || email.isEmpty || password.isEmpty || confirmPassword.isEmpty) {
+    if (name.isEmpty || email.isEmpty || phone.isEmpty || password.isEmpty || confirmPassword.isEmpty) {
       messenger.showSnackBar(
         const SnackBar(content: Text('Please fill in all fields.')),
+      );
+      return;
+    }
+
+    if (!email.contains('@') || !email.contains('.')) {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Please enter a valid email address.')),
       );
       return;
     }
@@ -69,6 +79,22 @@ class _RegisterPageState extends State<RegisterPage> {
       );
       return;
     }
+
+    // Simple phone validation - must be at least 10 digits
+    final phoneDigits = phone.replaceAll(RegExp(r'\D'), '');
+    if (phoneDigits.length < 10) {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Please enter a valid phone number.')),
+      );
+      return;
+    }
+
+    // Normalize phone before saving and OTP send (strict E.164).
+    final formattedPhone = phoneDigits.startsWith('94')
+      ? '+$phoneDigits'
+      : phoneDigits.startsWith('0')
+        ? '+94${phoneDigits.substring(1)}'
+        : '+94$phoneDigits';
 
     setState(() {
       _isLoading = true;
@@ -94,32 +120,18 @@ class _RegisterPageState extends State<RegisterPage> {
     try {
       debugPrint('Starting registration process...');
       // Add timeout to prevent indefinite waiting
-      final credential = await AuthService.registerUser(
+      await AuthService.registerUser(
         name: name,
         email: email,
+        phone: formattedPhone,
         password: password,
         role: _selectedRole,
+        darkModeEnabled: isDarkTheme,
       );
       debugPrint('Registration completed successfully');
 
       if (mounted) {
-        final uid = credential.user?.uid;
-        if (uid == null) {
-          messenger.showSnackBar(
-            const SnackBar(content: Text('Registration succeeded but user session is missing.')),
-          );
-          return;
-        }
-
-        final otpSent = await AuthService.sendEmailOtp(
-          uid: uid,
-          email: email,
-          name: name,
-        );
-
-        if (!mounted) {
-          return;
-        }
+        final emailLinkSent = await AuthService.sendVerificationEmailToCurrentUser();
 
         await AuthService.signOut();
 
@@ -127,42 +139,14 @@ class _RegisterPageState extends State<RegisterPage> {
           return;
         }
 
-        if (!otpSent) {
-          messenger.showSnackBar(
-            const SnackBar(
-              content: Text('Account created, but OTP email failed. Please try resend on verification page.'),
-            ),
-          );
-        }
-
-        final verified = await Navigator.of(context).push<bool>(
+        await Navigator.of(context).pushReplacement(
           MaterialPageRoute(
-            builder: (context) => OtpVerificationPage(
-              uid: uid,
+            builder: (context) => EmailVerificationNoticePage(
               email: email,
-              name: name,
+              emailSent: emailLinkSent,
+              errorMessage: AuthService.lastVerificationEmailError,
+              resendPassword: password,
             ),
-          ),
-        );
-
-        if (!mounted) {
-          return;
-        }
-
-        if (verified == true) {
-          messenger.showSnackBar(
-            const SnackBar(
-              content: Text('Account verified. Please login.'),
-              backgroundColor: Colors.green,
-            ),
-          );
-          Navigator.of(context).pop();
-          return;
-        }
-
-        messenger.showSnackBar(
-          const SnackBar(
-            content: Text('OTP verification is required before you can sign in.'),
           ),
         );
       }
@@ -205,187 +189,246 @@ class _RegisterPageState extends State<RegisterPage> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final shellTopColors = isDark
+        ? const [Color(0xFF0A1630), Color(0xFF123A6D)]
+        : const [Colors.blueAccent, Colors.lightBlueAccent];
+    final cardColor = isDark ? const Color(0xFF0F233F) : Colors.white;
+    final titleColor = isDark ? const Color(0xFF79B6FF) : Colors.blueAccent;
+    final subtitleColor = isDark ? Colors.white70 : Colors.grey;
+    final inputFill = isDark ? const Color(0xFF1A355B) : Colors.grey.shade100;
+    final inputTextColor = isDark ? Colors.white : Colors.black87;
+    final inputHintColor = isDark ? Colors.white60 : Colors.black54;
+    final inputIconColor = isDark ? const Color(0xFF9ACBFF) : Colors.black54;
+    final buttonColor = isDark ? const Color(0xFF2E80F0) : Colors.blueAccent;
+
     return Scaffold(
       body: Container(
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: [Colors.blueAccent, Colors.lightBlueAccent],
+            colors: shellTopColors,
           ),
         ),
         child: Center(
           child: SingleChildScrollView(
             padding: const EdgeInsets.all(24.0),
-            child: Card(
-              elevation: 8,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: Padding(
-                padding: const EdgeInsets.all(32.0),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(
-                      Icons.person_add,
-                      size: 80,
-                      color: Colors.blueAccent,
-                    ),
-                    const SizedBox(height: 16),
-                    const Text(
-                      'Create Account',
-                      style: TextStyle(
-                        fontSize: 32,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.blueAccent,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 460),
+              child: Card(
+                elevation: 10,
+                color: cardColor,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(30.0),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.person_add,
+                        size: 80,
+                        color: titleColor,
                       ),
-                    ),
-                    const SizedBox(height: 8),
-                    const Text(
-                      'Join CinnaLink',
-                      style: TextStyle(
-                        fontSize: 18,
-                        color: Colors.grey,
+                      const SizedBox(height: 16),
+                      Text(
+                        'Create Account',
+                        style: TextStyle(
+                          fontSize: 32,
+                          fontWeight: FontWeight.bold,
+                          color: titleColor,
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 32),
-                    TextField(
-                      controller: _nameController,
-                      decoration: InputDecoration(
-                        labelText: 'Full Name',
-                        prefixIcon: const Icon(Icons.person),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Join CinnaLink',
+                        style: TextStyle(
+                          fontSize: 18,
+                          color: subtitleColor,
                         ),
-                        filled: true,
-                        fillColor: Colors.grey[100],
                       ),
-                    ),
-                    const SizedBox(height: 16),
-                    TextField(
-                      controller: _emailController,
-                      keyboardType: TextInputType.emailAddress,
-                      decoration: InputDecoration(
-                        labelText: 'Email',
-                        prefixIcon: const Icon(Icons.email),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        filled: true,
-                        fillColor: Colors.grey[100],
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    TextField(
-                      controller: _passwordController,
-                      decoration: InputDecoration(
-                        labelText: 'Password',
-                        prefixIcon: const Icon(Icons.lock),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        filled: true,
-                        fillColor: Colors.grey[100],
-                      ),
-                      obscureText: true,
-                    ),
-                    const SizedBox(height: 16),
-                    TextField(
-                      controller: _confirmPasswordController,
-                      decoration: InputDecoration(
-                        labelText: 'Confirm Password',
-                        prefixIcon: const Icon(Icons.lock_outline),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        filled: true,
-                        fillColor: Colors.grey[100],
-                      ),
-                      obscureText: true,
-                    ),
-                    const SizedBox(height: 16),
-                    DropdownButtonFormField<String>(
-                      initialValue: _selectedRole,
-                      decoration: InputDecoration(
-                        labelText: 'I am a',
-                        prefixIcon: const Icon(Icons.work),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        filled: true,
-                        fillColor: Colors.grey[100],
-                      ),
-                      items: const [
-                        DropdownMenuItem(
-                          value: 'worker',
-                          child: Text('Worker'),
-                        ),
-                        DropdownMenuItem(
-                          value: 'landowner',
-                          child: Text('Landowner'),
-                        ),
-                      ],
-                      onChanged: (value) {
-                        setState(() {
-                          _selectedRole = value!;
-                        });
-                      },
-                    ),
-                    const SizedBox(height: 32),
-                    SizedBox(
-                      width: double.infinity,
-                      height: 50,
-                      child: ElevatedButton(
-                        onPressed: _isLoading ? null : _register,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.blueAccent,
-                          shape: RoundedRectangleBorder(
+                      const SizedBox(height: 32),
+                      TextField(
+                        controller: _nameController,
+                        style: TextStyle(color: inputTextColor),
+                        decoration: InputDecoration(
+                          labelText: 'Full Name',
+                          labelStyle: TextStyle(color: inputHintColor),
+                          hintStyle: TextStyle(color: inputHintColor),
+                          prefixIcon: Icon(Icons.person, color: inputIconColor),
+                          border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
                           ),
-                          elevation: 4,
+                          filled: true,
+                          fillColor: inputFill,
                         ),
-                        child: _isLoading
-                            ? Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  const SizedBox(
-                                    width: 20,
-                                    height: 20,
-                                    child: CircularProgressIndicator(
-                                      color: Colors.white,
-                                      strokeWidth: 2,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 12),
-                                  const Text(
-                                    'Creating account...',
-                                    style: TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.bold,
-                                      color: Colors.white,
-                                    ),
-                                  ),
-                                ],
-                              )
-                            : const Text(
-                                'Register',
-                                style: TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.white,
-                                ),
-                              ),
                       ),
-                    ),
-                    const SizedBox(height: 16),
-                    TextButton(
-                      onPressed: () {
-                        Navigator.of(context).pop();
-                      },
-                      child: const Text('Already have an account? Login'),
-                    ),
-                  ],
+                      const SizedBox(height: 16),
+                      TextField(
+                        controller: _emailController,
+                        keyboardType: TextInputType.emailAddress,
+                        style: TextStyle(color: inputTextColor),
+                        decoration: InputDecoration(
+                          labelText: 'Email',
+                          hintText: 'you@example.com',
+                          labelStyle: TextStyle(color: inputHintColor),
+                          hintStyle: TextStyle(color: inputHintColor),
+                          prefixIcon: Icon(Icons.email, color: inputIconColor),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          filled: true,
+                          fillColor: inputFill,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      TextField(
+                        controller: _phoneController,
+                        keyboardType: TextInputType.phone,
+                        style: TextStyle(color: inputTextColor),
+                        decoration: InputDecoration(
+                          labelText: 'Phone Number',
+                          hintText: 'e.g., +94 77 1234567 or 0771234567',
+                          labelStyle: TextStyle(color: inputHintColor),
+                          hintStyle: TextStyle(color: inputHintColor),
+                          prefixIcon: Icon(Icons.phone, color: inputIconColor),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          filled: true,
+                          fillColor: inputFill,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      TextField(
+                        controller: _passwordController,
+                        style: TextStyle(color: inputTextColor),
+                        decoration: InputDecoration(
+                          labelText: 'Password',
+                          labelStyle: TextStyle(color: inputHintColor),
+                          hintStyle: TextStyle(color: inputHintColor),
+                          prefixIcon: Icon(Icons.lock, color: inputIconColor),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          filled: true,
+                          fillColor: inputFill,
+                        ),
+                        obscureText: true,
+                      ),
+                      const SizedBox(height: 16),
+                      TextField(
+                        controller: _confirmPasswordController,
+                        style: TextStyle(color: inputTextColor),
+                        decoration: InputDecoration(
+                          labelText: 'Confirm Password',
+                          labelStyle: TextStyle(color: inputHintColor),
+                          hintStyle: TextStyle(color: inputHintColor),
+                          prefixIcon: Icon(Icons.lock_outline, color: inputIconColor),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          filled: true,
+                          fillColor: inputFill,
+                        ),
+                        obscureText: true,
+                      ),
+                      const SizedBox(height: 16),
+                      DropdownButtonFormField<String>(
+                        initialValue: _selectedRole,
+                        style: TextStyle(color: inputTextColor),
+                        dropdownColor: isDark ? const Color(0xFF1A355B) : Colors.white,
+                        decoration: InputDecoration(
+                          labelText: 'I am a',
+                          labelStyle: TextStyle(color: inputHintColor),
+                          hintStyle: TextStyle(color: inputHintColor),
+                          prefixIcon: Icon(Icons.work, color: inputIconColor),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          filled: true,
+                          fillColor: inputFill,
+                        ),
+                        items: [
+                          DropdownMenuItem(
+                            value: 'worker',
+                            child: Text('Worker', style: TextStyle(color: inputTextColor)),
+                          ),
+                          DropdownMenuItem(
+                            value: 'landowner',
+                            child: Text('Landowner', style: TextStyle(color: inputTextColor)),
+                          ),
+                        ],
+                        onChanged: (value) {
+                          setState(() {
+                            _selectedRole = value!;
+                          });
+                        },
+                      ),
+                      const SizedBox(height: 32),
+                      SizedBox(
+                        width: double.infinity,
+                        height: 50,
+                        child: ElevatedButton(
+                          onPressed: _isLoading ? null : _register,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: buttonColor,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            elevation: 4,
+                          ),
+                          child: _isLoading
+                              ? Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    const SizedBox(
+                                      width: 20,
+                                      height: 20,
+                                      child: CircularProgressIndicator(
+                                        color: Colors.white,
+                                        strokeWidth: 2,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    const Text(
+                                      'Creating account...',
+                                      style: TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                                  ],
+                                )
+                              : const Text(
+                                  'Register',
+                                  style: TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      TextButton(
+                        onPressed: () {
+                          Navigator.of(context).pop();
+                        },
+                        child: Text(
+                          'Already have an account? Login',
+                          style: TextStyle(
+                            color: isDark
+                                ? const Color(0xFF9ACBFF)
+                                : Colors.blueAccent,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -399,6 +442,7 @@ class _RegisterPageState extends State<RegisterPage> {
   void dispose() {
     _nameController.dispose();
     _emailController.dispose();
+    _phoneController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
     super.dispose();

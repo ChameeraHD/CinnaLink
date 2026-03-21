@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../backend/auth.dart';
+import 'email_verification_notice_page.dart';
+import 'password_reset_notice_page.dart';
 import 'register_page.dart';
 
 class LoginPage extends StatefulWidget {
@@ -14,6 +16,57 @@ class _LoginPageState extends State<LoginPage> {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   bool _isLoading = false;
+
+  Future<void> _forgotPassword() async {
+    final emailController = TextEditingController(
+      text: _emailController.text.trim(),
+    );
+
+    final email = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Forgot Password'),
+        content: TextField(
+          controller: emailController,
+          keyboardType: TextInputType.emailAddress,
+          decoration: const InputDecoration(
+            labelText: 'Email',
+            hintText: 'you@example.com',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(context).pop(emailController.text.trim()),
+            child: const Text('Send Link'),
+          ),
+        ],
+      ),
+    );
+
+    if (email == null || email.isEmpty) {
+      return;
+    }
+
+    final ok = await AuthService.sendPasswordResetEmail(email: email);
+
+    if (!mounted) {
+      return;
+    }
+
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => PasswordResetNoticePage(
+          email: email,
+          emailSent: ok,
+          errorMessage: AuthService.lastPasswordResetError,
+        ),
+      ),
+    );
+  }
 
   String _readableAuthError(FirebaseAuthException e) {
     return switch (e.code) {
@@ -58,28 +111,16 @@ class _LoginPageState extends State<LoginPage> {
         password: password,
       );
       debugPrint('LoginPage: Sign in completed successfully');
-      // Ensure user document exists
-      await AuthService.ensureCurrentUserDocumentExists();
-      final profile = await AuthService.getCurrentUserProfile();
-      final requiresOtpVerification =
-          profile?['requiresOtpVerification'] == true;
 
-      if (requiresOtpVerification) {
-        await AuthService.signOut();
-
-        if (!mounted) {
-          return;
-        }
-
-        messenger.showSnackBar(
-          const SnackBar(
-            content: Text(
-              'Your account is not verified yet. Complete OTP verification during sign up first.',
-            ),
-          ),
-        );
+      final isEmailVerified = await AuthService.refreshAndSyncEmailVerification();
+      if (!isEmailVerified) {
+        await AuthService.sendVerificationEmailToCurrentUser();
         return;
       }
+
+      // Ensure user document exists
+      await AuthService.ensureCurrentUserDocumentExists();
+
       // AuthGate handles navigation based on the user's role.
     } on FirebaseAuthException catch (e) {
       debugPrint('LoginPage: Firebase Auth Exception: ${e.code} - ${e.message}');
@@ -187,7 +228,7 @@ class _LoginPageState extends State<LoginPage> {
                         ),
                         obscureText: true,
                       ),
-                      const SizedBox(height: 28),
+                      const SizedBox(height: 24),
                       SizedBox(
                         width: double.infinity,
                         height: 50,
@@ -221,6 +262,22 @@ class _LoginPageState extends State<LoginPage> {
                         },
                         child: Text(
                           "Don't have an account? Register now",
+                          style: TextStyle(
+                            color: isDark
+                                ? const Color(0xFF9ACBFF)
+                                : Colors.blueAccent,
+                          ),
+                        ),
+                      ),
+                      TextButton(
+                        onPressed: _isLoading ? null : _forgotPassword,
+                        style: TextButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          minimumSize: Size.zero,
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        ),
+                        child: Text(
+                          'Forgot password?',
                           style: TextStyle(
                             color: isDark
                                 ? const Color(0xFF9ACBFF)
