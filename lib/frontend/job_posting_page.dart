@@ -19,10 +19,12 @@ class _JobPostingPageState extends State<JobPostingPage> {
   final _wageController = TextEditingController();
   final _workersController = TextEditingController();
   final _phoneController = TextEditingController();
+  final _estimatedDaysController = TextEditingController();
 
   String? _jobType;
   DateTime _selectedDate = DateTime.now();
   bool _isSubmitting = false;
+  String? _deletingJobId;
 
   Future<void> _selectDate(BuildContext context) async {
     final DateTime? picked = await showDatePicker(
@@ -78,7 +80,7 @@ class _JobPostingPageState extends State<JobPostingPage> {
         jobType: _jobType!,
         paymentRate: double.parse(_wageController.text.trim()),
         requiredWorkers: int.parse(_workersController.text.trim()),
-
+        estimatedDays: int.parse(_estimatedDaysController.text.trim()),
         startDate: _selectedDate,
         phone: _phoneController.text.trim(),
       );
@@ -95,6 +97,7 @@ class _JobPostingPageState extends State<JobPostingPage> {
       _wageController.clear();
       _workersController.clear();
       _phoneController.clear();
+      _estimatedDaysController.clear();
       setState(() {
         _jobType = null;
         _selectedDate = DateTime.now();
@@ -108,6 +111,79 @@ class _JobPostingPageState extends State<JobPostingPage> {
       if (mounted) {
         setState(() {
           _isSubmitting = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _deletePostedJob(JobRecord job) async {
+    final currentUserId = AuthService.currentUserId;
+    if (currentUserId == null) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please log in again to manage jobs.')),
+      );
+      return;
+    }
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Delete Posted Job?'),
+          content: const Text(
+            'You can only delete a job before anyone applies. This action cannot be undone.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: const Text('Delete'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed != true) {
+      return;
+    }
+
+    setState(() {
+      _deletingJobId = job.id;
+    });
+
+    try {
+      await JobRepository.deletePostedJobIfNoApplicants(
+        landownerId: currentUserId,
+        jobId: job.id,
+      );
+
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Job deleted successfully.')),
+      );
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      final message = error.toString().replaceFirst('Bad state: ', '').trim();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(message)),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _deletingJobId = null;
         });
       }
     }
@@ -154,7 +230,6 @@ class _JobPostingPageState extends State<JobPostingPage> {
                 color: Colors.white,
               ),
             ),
-
             const SizedBox(height: 12),
             if (jobs.isEmpty)
               Text(
@@ -189,6 +264,25 @@ class _JobPostingPageState extends State<JobPostingPage> {
                                 ),
                               ),
                             ),
+                            if (job.applicantCount == 0 && job.status == 'open')
+                              IconButton(
+                                tooltip: 'Delete job',
+                                onPressed: _deletingJobId == job.id
+                                    ? null
+                                    : () => _deletePostedJob(job),
+                                icon: _deletingJobId == job.id
+                                    ? const SizedBox(
+                                        height: 18,
+                                        width: 18,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                        ),
+                                      )
+                                    : const Icon(
+                                        Icons.delete_outline,
+                                        color: Colors.red,
+                                      ),
+                              ),
                             Container(
                               padding: const EdgeInsets.symmetric(
                                 horizontal: 10,
@@ -216,17 +310,24 @@ class _JobPostingPageState extends State<JobPostingPage> {
                           runSpacing: 8,
                           children: [
                             Text('${l10n.jobType}: ${job.jobType}'),
-                            Text(
-                              '${l10n.workersNeeded}: ${job.requiredWorkers}',
-                            ),
+                            Text('${l10n.workersNeeded}: ${job.requiredWorkers}'),
+                            Text('Estimated Time: ${job.estimatedDays} day(s)'),
                             Text(
                               '${l10n.payment}: LKR ${job.paymentRate.toStringAsFixed(0)}',
                             ),
+                            Text('${l10n.startDate}: ${_formatDate(job.startDate)}'),
                             Text(
-                              '${l10n.startDate}: ${_formatDate(job.startDate)}',
+                              'Estimated End Date: ${_formatDate(job.startDate.add(Duration(days: job.estimatedDays > 0 ? job.estimatedDays - 1 : 0)))}',
                             ),
                           ],
                         ),
+                        if (!(job.applicantCount == 0 && job.status == 'open')) ...[
+                          const SizedBox(height: 8),
+                          const Text(
+                            'Delete is available only before anyone applies.',
+                            style: TextStyle(fontSize: 12, color: Colors.grey),
+                          ),
+                        ],
                       ],
                     ),
                   ),
@@ -426,6 +527,30 @@ class _JobPostingPageState extends State<JobPostingPage> {
                               final wage = double.tryParse(v);
                               if (wage == null || wage <= 0) {
                                 return "Enter a valid wage amount";
+                              }
+                              return null;
+                            },
+                          ),
+                          const SizedBox(height: 16),
+                          TextFormField(
+                            controller: _estimatedDaysController,
+                            keyboardType: TextInputType.number,
+                            decoration: InputDecoration(
+                              labelText: 'Estimated Time (Days)',
+                              hintText: 'e.g. 5',
+                              prefixIcon: const Icon(Icons.timelapse),
+                              border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12)),
+                              filled: true,
+                              fillColor: inputFill,
+                            ),
+                            validator: (v) {
+                              final days = int.tryParse(v ?? '');
+                              if (days == null || days <= 0) {
+                                return 'Enter a valid number of days';
+                              }
+                              if (days > 365) {
+                                return 'Estimated days should be 365 or less';
                               }
                               return null;
                             },

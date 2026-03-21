@@ -19,6 +19,8 @@ class _RegisterPageState extends State<RegisterPage> {
   final TextEditingController _confirmPasswordController = TextEditingController();
   String _selectedRole = 'worker';
   bool _isLoading = false;
+  String? _emailErrorText;
+  String? _phoneErrorText;
 
   Future<bool> _checkConnectivity() async {
     try {
@@ -60,9 +62,9 @@ class _RegisterPageState extends State<RegisterPage> {
     }
 
     if (!email.contains('@') || !email.contains('.')) {
-      messenger.showSnackBar(
-        const SnackBar(content: Text('Please enter a valid email address.')),
-      );
+      setState(() {
+        _emailErrorText = 'Please enter a valid email address.';
+      });
       return;
     }
 
@@ -96,6 +98,17 @@ class _RegisterPageState extends State<RegisterPage> {
         ? '+94${phoneDigits.substring(1)}'
         : '+94$phoneDigits';
 
+    if (_phoneErrorText != null) {
+      setState(() {
+        _phoneErrorText = null;
+      });
+    }
+    if (_emailErrorText != null) {
+      setState(() {
+        _emailErrorText = null;
+      });
+    }
+
     setState(() {
       _isLoading = true;
     });
@@ -111,6 +124,25 @@ class _RegisterPageState extends State<RegisterPage> {
           ),
         );
         setState(() {
+          _isLoading = false;
+        });
+      }
+      return;
+    }
+
+    final checkResults = await Future.wait<bool>([
+      AuthService.isPhoneNumberInUse(phone: formattedPhone),
+      AuthService.isEmailInUse(email: email),
+    ]);
+    final isPhoneTaken = checkResults[0];
+    final isEmailTaken = checkResults[1];
+
+    if (isPhoneTaken || isEmailTaken) {
+      if (mounted) {
+        setState(() {
+          _phoneErrorText =
+              isPhoneTaken ? 'This phone number is already used.' : null;
+          _emailErrorText = isEmailTaken ? 'This email is already used.' : null;
           _isLoading = false;
         });
       }
@@ -154,11 +186,19 @@ class _RegisterPageState extends State<RegisterPage> {
       String message;
       switch (e.code) {
         case 'email-already-in-use':
-          message = 'An account with this email already exists.';
-          break;
+          if (mounted) {
+            setState(() {
+              _emailErrorText = 'This email is already used.';
+            });
+          }
+          return;
         case 'invalid-email':
-          message = 'Please enter a valid email.';
-          break;
+          if (mounted) {
+            setState(() {
+              _emailErrorText = 'Please enter a valid email address.';
+            });
+          }
+          return;
         case 'weak-password':
           message = 'Password is too weak.';
           break;
@@ -175,6 +215,15 @@ class _RegisterPageState extends State<RegisterPage> {
         SnackBar(content: Text(message)),
       );
     } catch (e) {
+      final text = e.toString();
+      if (text.contains('This phone number is already used.')) {
+        if (mounted) {
+          setState(() {
+            _phoneErrorText = 'This phone number is already used.';
+          });
+        }
+        return;
+      }
       messenger.showSnackBar(
         SnackBar(content: Text('Registration failed: ${e.toString()}')),
       );
@@ -269,10 +318,18 @@ class _RegisterPageState extends State<RegisterPage> {
                       TextField(
                         controller: _emailController,
                         keyboardType: TextInputType.emailAddress,
+                        onChanged: (_) {
+                          if (_emailErrorText != null) {
+                            setState(() {
+                              _emailErrorText = null;
+                            });
+                          }
+                        },
                         style: TextStyle(color: inputTextColor),
                         decoration: InputDecoration(
                           labelText: 'Email',
                           hintText: 'you@example.com',
+                          errorText: _emailErrorText,
                           labelStyle: TextStyle(color: inputHintColor),
                           hintStyle: TextStyle(color: inputHintColor),
                           prefixIcon: Icon(Icons.email, color: inputIconColor),
@@ -287,10 +344,18 @@ class _RegisterPageState extends State<RegisterPage> {
                       TextField(
                         controller: _phoneController,
                         keyboardType: TextInputType.phone,
+                        onChanged: (_) {
+                          if (_phoneErrorText != null) {
+                            setState(() {
+                              _phoneErrorText = null;
+                            });
+                          }
+                        },
                         style: TextStyle(color: inputTextColor),
                         decoration: InputDecoration(
                           labelText: 'Phone Number',
                           hintText: 'e.g., +94 77 1234567 or 0771234567',
+                          errorText: _phoneErrorText,
                           labelStyle: TextStyle(color: inputHintColor),
                           hintStyle: TextStyle(color: inputHintColor),
                           prefixIcon: Icon(Icons.phone, color: inputIconColor),
