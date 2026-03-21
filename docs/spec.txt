@@ -1,0 +1,692 @@
+PAGE 1
+CinnaLink
+Digital 
+Workforce 
+Connection 
+&
+Management Platform for the Sri Lankan
+Cinnamon Industry
+Team AlgoFive
+240071G - CHAMIKARA H.D.C.A.     
+240255B - ISURU B.   
+240312A - KALPASHAKA N.G.L.G.  
+240735X - WIJEWARDHANA K.V.T.D.S.  
+240662U - THIEKSHANA P.V.N.  
+ 
+1
+
+PAGE 2
+Sri Lanka is globally recognized as the leading producer and
+exporter of true cinnamon, with industry operations heavily
+dependent on skilled manual labor for activities such as
+cutting,scraping, peeling, and quilling. Despite its importance,
+workforce coordination in the cinnamon sector remains largely
+informal,relying 
+on 
+word-of-mouth 
+communication 
+and
+intermediaries. This results in limited worker reach, scheduling
+conflicts, lack of transparency, and inefficient workforce
+allocation.
+To address these challenges, the CinnaLink platform is proposed
+as 
+a 
+mobile- 
+based 
+digital 
+workforce 
+connection 
+and
+management system for the Sri Lankan cinnamon industry. The
+platform enables landowners to publish job opportunities in
+advance of harvesting periods and allows workers or worker
+groups to discover, apply for, and participate in suitable jobs. The
+system further supports automated availability validation to
+prevent double booking,structured job selection when multiple
+approvals occur, daily task progress reporting based on
+cinnamon quill output, and performance evaluation through
+ratings and analytics.
+Sri Lanka is globally recognized as the leading producer and
+exporter of true cinnamon, with industry operations heavily
+dependent on skilled manual labor for activities such as
+cutting,scraping, peeling, and quilling. Despite its importance,
+workforce coordination in the cinnamon sector remains largely
+informal,relying 
+on 
+word-of-mouth 
+communication 
+and
+intermediaries. This results in limited worker reach, scheduling
+conflicts, lack of transparency, and inefficient workforce
+allocation.
+1.Introduction
+2
+
+PAGE 3
+The development of CinnaLink follows the Object-Oriented
+Software Development (OOSD) methodology. During the Object-
+Oriented Analysis (OOA) phase, key domain entities within the
+cinnamon workforce ecosystem are identified. These entities are
+then structured and organized through Object-Oriented Design
+(OOD) by defining class relationships, responsibilities, and system
+modules. Finally, the system is implemented using Object-Oriented
+Programming (OOP) principles such as encapsulation, abstraction,
+inheritance, and polymorphism to ensure a modular, maintainable,
+and scalable solution.
+1.1 Object-Oriented Development
+Perspective
+1.2 Object-Oriented Analysis
+(OOA) - Entity Identification
+During the Object-Oriented Analysis phase, key domain entities
+representing actors, resources, and operational records within the
+cinnamon workforce ecosystem were identified. These entities form
+the conceptual object model of the system.
+3
+
+PAGE 4
+Identified Domain Entities
+Job
+ 
+Users
+Worker
+ 
+Application
+ 
+Landowner
+ 
+Worker Group
+ 
+- Workopportunities posted by
+ landowners.
+- Collaborativeunits of workers 
+performing tasks.
+- Jobparticipation requests and
+ approval workflow records.
+- Jobprovidersmanaging workforce 
+requirements.
+- Generalized representation of system 
+participants.
+-Individual labor providers engaging in jobs.
+4
+
+PAGE 5
+Schedule
+ 
+Verification Profile
+ 
+Rating and Feedback
+ 
+Task Progress Record
+ 
+- Performanceevaluation
+information.
+- Dailyproduction reporting
+ associated with jobs.
+- Identityvalidationinformation
+ supporting trust.
+- Confirmedworker commitments
+ enabling availability management.
+The identification of these entities establishes the conceptual
+foundation for subsequent Object-Oriented Design activities,
+including class specification, relationship modeling, and
+behavioural interaction analysis.
+5
+
+PAGE 6
+1.3 Object-Oriented Design (OOD)
+Class Design
+Design Overview
+ 
+ 
+- Represents any authenticated system
+participant
+Attributes
+userID
+name
+phoneNumber
+password
+roletype
+verificationStatus(Verified or not)
+Behaviours
+register()
+login()
+logout()
+updateProfile()
+The Object-Oriented Designphase translates the conceptual
+analysis model into a structured software architecture for the
+CinnaLink platform. The system is designed using interacting
+classes that represent domain entities such as users, jobs,
+applications, schedules, and progress records. The design
+emphasizes modular decomposition and clear separation of
+concerns 
+to 
+ensure 
+scalability, 
+maintainability, 
+and
+extensibility of the workforce management platform.
+User (Superclass)
+6
+
+PAGE 7
+Worker (Subclass of user)
+ 
+Landowner (Subclass of user)
+ - Represents job demand side of
+marketplace
+Attributes
+landownerID
+NICNumber
+estateLocation
+contactDetails
+verificationDocuments
+ratingScore
+Behaviours
+createJobPost()
+editJobPost()
+viewApplications()
+approveWorker()
+rejectWorker()
+rateWorker()
+viewJobProgress()
+- Represents labor supply entity
+Attributes
+workerID
+NICNumber
+skills
+experienceLevel
+availabilityCalender
+ratingScore
+completedJobCount
+sheduleList (allows querying)
+7
+
+PAGE 8
+8
+
+PAGE 9
+9
+
+PAGE 10
+10
+
+PAGE 11
+Association
+Inheritance
+Composition
+Thechildcannot exist without parent.
+Worker ◆-- Schedual
+Aggreagation
+Two completely separate objects interact
+with each other, but neither owns other
+                    Landowner ⟷ Job
+ 
+Worker ⟷ Application
+Application ⟷ Job
+ 
+User ⟷ Rating
+Job ◆-- TaskProgressRecord
+Worker and Landowner classes inherits some
+attributes and behaviours of User class.
+                        User → Worker
+                        User → Landowner  
+WorkerGroup ◇-- Worker 
+The group conatins multiple Worker
+objects If WorkerGroup object deleted
+from the system, the individual worker
+accounts are not deleted.
+Class Relationships
+11
+
+PAGE 12
+Job posting
+Application
+processing
+Group creation
+Registration
+OTP verification
+Login
+Job browsing
+Membership
+management
+The system architecture is organized using a modular design
+approach, where functionality is divided into distinct functional
+modules based on responsibility. Each module encapsulates a
+specific set of related operations within the CinnaLink platform,
+enabling structured development, improved maintainability, and
+clear separation of concerns across system components.
+Module Design
+Authentication Module
+Job Management Module
+Group Management Module
+12
+
+PAGE 13
+Daily production reporting
+Identify validation
+Job creation 
+→ Landowner
+Application Submission  →  Worker
+Approval workflow 
+Job selection 
+→ Application
+→ Worker
+→ Schedule
+→ Worker
+Conflict detection 
+Group formation 
+Badge assignment
+Behaviour
+Verification Module
+Progress Tracking Module
+Responsible Class
+Behavioural Design Mapping
+13
+
+PAGE 14
+Daily production update
+Manage group structure
+and membership
+→ 
+TaskProgressRecord
+ 
+→     WorkerGroup
+Performance evaluvation  → 
+Rating
+Identiy validation
+ →     VerificationProfile
+14
+
+PAGE 15
+In the implementation stage of CinnaLink, core Object-
+Oriented Programming (OOP) principles are applied to
+ensure modularity, maintainability, scalability, and system
+reliability. These principles also enhance data safety,
+controlled access to sensitive information, and structured
+error handling, contributing to a robust and secure workforce
+management platform. The following OOP principles are
+incorporated into the system design
+2. Abstraction
+1 .Encapsulation
+Abstraction simplifies complex operations by exposing only
+essential functionality while hiding internal implementation
+details.
+                                           Example:
+ The Schedule entity encapsulates worker
+commitment data, and availability checking is
+performed through methods such as checkOverlap()
+rather than allowing direct modification of schedule
+records.
+1.4 Object-Oriented Programming
+(OOP)
+Encapsulation is achieved by restricting direct access to
+internal object data and allowing controlled interaction
+through defined methods.
+15
+
+PAGE 16
+                                  Example:
+The 
+scheduling 
+module 
+provides 
+an
+isWorkerAvailable() operation that hides the
+internal 
+date 
+comparison 
+and 
+conflict
+detection logic from other classes.
+                                  Example:
+The Worker and Landowner classes inherit
+common 
+attributes 
+and 
+authentication
+behaviour from the User superclass.
+                                   Example:
+The submitRating() operation can be invoked by
+both Worker and Landowner, but the evaluation
+context differs based on the user role.
+Allow different user roles (such as Worker and Landowner) to
+perform common operations through a unified interface while
+enabling role-specific behavior.
+Inheritance promotes code reuse by allowing specialized classes
+to derive common behaviour from a generalized class.
+3.Inheritance
+4.Polymorphism
+16
+
+PAGE 17
+High cohesion is maintained by grouping related data and
+behaviour within a single class.
+6.Low Coupling
+                                        Example:
+The Application entity manages all job request
+lifecycle states, including submission, approval, and
+worker decision handling.
+                                        Example: 
+Workers do not directly modify job selection lists.
+instead, job acceptance is coordinated through the
+Application entity, reducing tight coupling between
+Worker and Job.
+Low coupling reduces dependency between classes by ensuring
+interaction occurs through well-defined interfaces.
+5.High Cohesion
+17
+
+PAGE 18
+From the customer’s perspective, CinnaLink provides a
+structured and scalable digital solution for workforce
+coordination in the cinnamon industry. The system
+reduces 
+scheduling 
+conflicts, 
+improves 
+operational
+efficiency, enables performance-based worker evaluation,
+and supports data-driven decision-making. Through
+modular OOD architecture and secure implementation,
+the platform ensures reliability, maintainability, and long-
+term scalability, protecting the investment and enabling
+future expansion.
+From the user’s perspective, the system offers a
+transparent and accessible platform for job discovery,
+workforce hiring, and progress monitoring. Workers
+benefit from fair job selection mechanisms, protection
+from double booking, and recognition through ratings and
+verification badges. Landowners gain structured job
+management, real-time availability validation, and daily
+production tracking to monitor workforce efficiency. The
+user interface is designed to be simple and compatible
+with commonly used mobile devices.
+1.5 Stakeholder Perspective
+2.User Perspective (Workers and Landowners)
+1.Customer Perspective (Project Sponsor /
+ Investor)
+18
+
+PAGE 19
+The Sri Lankan cinnamon industry faces several
+workforce-related challenges:
+Skilled workers are hired through informal networks
+or middlemen, causing delays and higher costs.
+Landowners struggle to find available workers
+during peak harvesting periods.
+Workers lack access to information about better-
+paying or nearby job opportunities.
+Time conflicts occur when workers accept multiple
+jobs unknowingly (“double-booking”).
+These issues lead to production delays, reduced
+income for workers, and financial losses for
+landowners.
+PROJECT PROPOSAL
+2.Problem Statement
+19
+
+PAGE 20
+Digitally connect landowners and cinnamon
+workers through a centralized system.
+Prevent scheduling conflicts using real-time
+availability and approval mechanisms.
+Optimize workforce allocation based on job
+type and raw material availability.
+Improve 
+transparency 
+in 
+payments, 
+job
+selection, and performance ratings.
+Enhance productivity and scalability within
+small-scale cinnamon operations.
+PROJECT PROPOSAL
+3.Objectives
+The main objectives of the CinnaLink platform are to:
+20
+
+PAGE 21
+Cinnamon Workers
+(Primary Users)
+Skilled individuals or groups
+involved in cutting, peeling,
+scraping, and quilling.
+Landowners / Cinnamon
+Producers (Primary Users)
+Smallholders and processing
+facility 
+owners 
+who 
+require
+skilled labor.
+Cinnamon Processing
+Workspaces
+Benefit 
+from 
+improved
+scheduling and task tracking.
+Local Cinnamon Industry
+Ecosystem
+Gains efficiency, transparency,
+and economic growth.
+4.Stakeholders
+21
+
+PAGE 22
+1.Worker
+Accounts
+Individual 
+workers 
+or 
+worker
+leaders who can form groups.
+Groups specialize in specific tasks:
+            Cutting cinnamon     branches
+            Scraping outer bark
+            Peeling inner bark
+            Rolling cinnamon into quills
+2.Landowner
+Accounts
+Cinnamon 
+landowners 
+or
+processing managers.
+5.Main Features
+Account Types
+22
+
+PAGE 23
+23
+
+PAGE 24
+6.System Workflow
+1
+Landowner posts a job
+2
+Workers or groups view and apply
+3
+System checks worker availability
+4
+Landowner approves worker(s)
+5
+If approved by multiple landowners, worker
+selects one job
+6
+Job is completed
+7
+Both parties provide ratings and feedback
+24
+
+PAGE 25
+7.Functional Requirements
+WORKER FEATURES
+Create and manage worker profile
+Select and display skill sets
+Form and manage worker groups
+View available job opportunities
+Apply for suitable jobs
+Choose one job if approved by multiple landowners
+within a limited time
+Rate landowners after job completion
+LANDOWNER FEATURES
+Create and manage landowner profile
+Post job listings (job type, number of workers,
+payment, duration)
+View worker or group applications
+Approve or reject worker requests
+Select alternative workers if the initial choice
+declines
+Rate workers after job completion
+25
+Overlap Rule:- in the schedule two jobs overlaps if:
+(newStart<=existingEnd) AND (newEnd>=existingStart)
+checks when a worker is applying 
+for a job and accepting a 
+approved request. 
+checks accepting within 
+the limited time
+3 days>=acceptingTime - 
+                approvedTime
+^
+Ask the question "Did the worker complete the assigned job responsibly and according to 
+agreed standards?" and give the chance to give a rating out of 10 for each worker in the 
+group
+
+PAGE 26
+TASK TRACKING
+Monitor task progress 
+Calculate and display the cumulative job yield up to
+the current day
+PERFORMANCE ANALYTICS
+Track worker output and reliability
+View job completion history
+Analyze workforce efficiency
+SCHEDULING & AVAILABILITY MANAGEMENT
+Real-time worker availability checking
+Conflict detection to prevent double-booking
+Automated approval time windows
+26
+
+PAGE 27
+The 
+interface 
+must 
+be 
+simple 
+and
+understandable 
+for 
+rural 
+workers 
+and
+landowners 
+with 
+basic 
+smartphone
+knowledge.
+The system must ensure accurate avaoilability
+validation,conflictdetection,deadline
+enforcement, and progressrecording without
+logical errors or data inconsistencies.
+Sensitive information such as NIC numbers,
+phone numbers, verification documents,
+and location data must be securely stored
+and protected using appropriate access
+control and encryption mechanisms.
+8.Non-Functional
+Requirements
+ 8.1 Essential 
+Usability and Accessibility
+Data Security and Privacy
+Reliability and Consistency
+27
+
+PAGE 28
+Support for Sinhala, Tamil, and English
+versions.
+The system should support expansion
+across multiple districts and increasing
+numbers of workers and landowners.
+The design should allow future addition of
+features such as payment integration,
+export tracking, or government compliance
+modules. 
+Ability to record daily progress without
+internet connectivity and synchronize data
+once the connection is restored.
+Scalability
+Maintainability
+Multi-language Interface
+Offline Data Entry Support
+8.2 Useful To Have
+28
+
+PAGE 29
+Predictive yield forecasting and long-term
+performance trend analysis to support
+strategic planning.
+Although the primary deployment target is
+mobile devices, the system may optionally
+support browser-based access for laptops
+and tablets for administrative or large-
+screen monitoring purposes.
+allowing users to modify or configure their
+home screen interface according to their
+preferences or role-specific needs.
+Custom Dashboard
+Personalization
+Advanced Analytics
+ Cross-Platform Web Access 
+8.3 Non-Essential
+29
+
+PAGE 30
+9.Expected Outcomes
+Reduced workforce scheduling conflicts
+More reliable worker hiring
+Increased transparency in job allocation
+and payments
+Improved productivity and income stability
+for workers
+Data-driven insights for landowners to
+scale operations
+Reachability of landowners to larger
+number of workers that they couldn’t
+contact manually before and workers can
+apply for jobs that will be more suited for
+them (Ex: closer ones)
+30
+
+PAGE 31
+Use Case Diagram
+31
+
+PAGE 32
+Activity Diagram
+32
+
+PAGE 33
+Sequence Diagram
+33
+
+PAGE 34
+34
+
+PAGE 35
+35
+
+PAGE 36
+36
+
+PAGE 37
+References
+Object Oriented Analysis and Design
+Unified Modeling Language (UML) Diagrams -
+GeeksForGeeks
+Chapter 5. Object Oriented Analysis and Design -
+University of Capetown
+All diagrams presented in this proposal were
+designed and generated using the Canva online
+design tool.
+37
