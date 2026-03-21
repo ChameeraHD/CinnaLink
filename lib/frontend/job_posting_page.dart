@@ -17,6 +17,7 @@ class _JobPostingPageState extends State<JobPostingPage> {
   final _locationController = TextEditingController();
   final _wageController = TextEditingController();
   final _workersController = TextEditingController();
+  final _phoneController = TextEditingController();
 
   String? _jobType;
   DateTime _selectedDate = DateTime.now();
@@ -38,16 +39,16 @@ class _JobPostingPageState extends State<JobPostingPage> {
 
   Future<void> _submitJob() async {
     final l10n = AppLocalizations.of(context)!;
-    
+
     if (!_formKey.currentState!.validate()) {
       return;
     }
 
     final currentUserId = AuthService.currentUserId;
     if (currentUserId == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(l10n.loginToPost)),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(l10n.loginToPost)));
       return;
     }
 
@@ -70,29 +71,32 @@ class _JobPostingPageState extends State<JobPostingPage> {
         jobType: _jobType!,
         paymentRate: double.parse(_wageController.text.trim()),
         requiredWorkers: int.parse(_workersController.text.trim()),
+
         startDate: _selectedDate,
+        phone: _phoneController.text.trim(),
       );
 
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(l10n.jobPostedSuccess)),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(l10n.jobPostedSuccess)));
 
       _jobTitleController.clear();
       _descriptionController.clear();
       _locationController.clear();
       _wageController.clear();
       _workersController.clear();
+      _phoneController.clear();
       setState(() {
         _jobType = null;
         _selectedDate = DateTime.now();
       });
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('${l10n.failedToPost}: $error')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('${l10n.failedToPost}: $error')));
     } finally {
       if (mounted) {
         setState(() {
@@ -143,6 +147,7 @@ class _JobPostingPageState extends State<JobPostingPage> {
                 color: Colors.white,
               ),
             ),
+
             const SizedBox(height: 12),
             if (jobs.isEmpty)
               Text(
@@ -150,62 +155,76 @@ class _JobPostingPageState extends State<JobPostingPage> {
                 style: const TextStyle(color: Colors.white70),
               )
             else
-              ...jobs.map((job) => Card(
-                    margin: const EdgeInsets.only(top: 12),
-                    color: Theme.of(context).brightness == Brightness.dark
-                        ? const Color(0xFF101917)
-                        : Colors.white,
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16)),
-                    child: Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              const Icon(Icons.agriculture, color: Colors.green),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Text(
-                                  job.title,
-                                  style: const TextStyle(
-                                      fontSize: 18, fontWeight: FontWeight.bold),
+              ...jobs.map(
+                (job) => Card(
+                  margin: const EdgeInsets.only(top: 12),
+                  color: Theme.of(context).brightness == Brightness.dark
+                      ? const Color(0xFF101917)
+                      : Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            const Icon(Icons.agriculture, color: Colors.green),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                job.title,
+                                style: const TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
                                 ),
                               ),
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 10, vertical: 6),
-                                decoration: BoxDecoration(
-                                  color: Colors.green.withOpacity(0.1),
-                                  borderRadius: BorderRadius.circular(20),
-                                ),
-                                child: Text(
-                                  job.status.toUpperCase(),
-                                  style: const TextStyle(
-                                      color: Colors.green,
-                                      fontWeight: FontWeight.bold),
+                            ),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 6,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.green.withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: Text(
+                                job.status.toUpperCase(),
+                                style: const TextStyle(
+                                  color: Colors.green,
+                                  fontWeight: FontWeight.bold,
                                 ),
                               ),
-                            ],
-                          ),
-                          const SizedBox(height: 8),
-                          Text(job.description),
-                          const SizedBox(height: 12),
-                          Wrap(
-                            spacing: 12,
-                            runSpacing: 8,
-                            children: [
-                              Text('${l10n.jobType}: ${job.jobType}'),
-                              Text('${l10n.workersNeeded}: ${job.requiredWorkers}'),
-                              Text('${l10n.payment}: LKR ${job.paymentRate.toStringAsFixed(0)}'),
-                              Text('${l10n.startDate}: ${_formatDate(job.startDate)}'),
-                            ],
-                          ),
-                        ],
-                      ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Text(job.description),
+                        const SizedBox(height: 12),
+                        Wrap(
+                          spacing: 12,
+                          runSpacing: 8,
+                          children: [
+                            Text('${l10n.jobType}: ${job.jobType}'),
+                            Text(
+                              '${l10n.workersNeeded}: ${job.requiredWorkers}',
+                            ),
+                            Text(
+                              '${l10n.payment}: LKR ${job.paymentRate.toStringAsFixed(0)}',
+                            ),
+                            Text(
+                              '${l10n.startDate}: ${_formatDate(job.startDate)}',
+                            ),
+                          ],
+                        ),
+                      ],
                     ),
-                  )),
+                  ),
+                ),
+              ),
           ],
         );
       },
@@ -255,7 +274,8 @@ class _JobPostingPageState extends State<JobPostingPage> {
                   elevation: 8,
                   color: cardColor,
                   shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16)),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
                   child: Padding(
                     padding: const EdgeInsets.all(24.0),
                     child: Form(
@@ -269,7 +289,8 @@ class _JobPostingPageState extends State<JobPostingPage> {
                               hintText: l10n.jobTitleHint,
                               prefixIcon: const Icon(Icons.work),
                               border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(12)),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
                               filled: true,
                               fillColor: inputFill,
                             ),
@@ -285,18 +306,27 @@ class _JobPostingPageState extends State<JobPostingPage> {
                               labelText: l10n.jobType,
                               prefixIcon: const Icon(Icons.category),
                               border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(12)),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
                             ),
-                            items: [
-                              l10n.harvesting,
-                              l10n.cutting,
-                              l10n.peeling,
-                              l10n.scraping,
-                              l10n.rolling
-                            ].map((job) {
-                              return DropdownMenuItem(value: job, child: Text(job));
-                            }).toList(),
-                            onChanged: (value) => setState(() => _jobType = value),
+                            items:
+                                [
+                                  "Cinnamon Cutting",
+                                  "Cinnamon Peeling",
+                                  "Cinnamon Scraping",
+                                  "Cinnamon Rolling",
+                                  "Cinnamon Drying",
+                                  "Cinnamon Grading & Sorting",
+                                  "Cinnamon Packing & Transporting",
+                                  "Cinnamon Plantation & Maintenance",
+                                ].map((job) {
+                                  return DropdownMenuItem(
+                                    value: job,
+                                    child: Text(job),
+                                  );
+                                }).toList(),
+                            onChanged: (value) =>
+                                setState(() => _jobType = value),
                             validator: (v) =>
                                 (v == null) ? l10n.selectJobType : null,
                           ),
@@ -309,7 +339,8 @@ class _JobPostingPageState extends State<JobPostingPage> {
                               hintText: l10n.jobDescHint,
                               prefixIcon: const Icon(Icons.description),
                               border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(12)),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
                               filled: true,
                               fillColor: inputFill,
                             ),
@@ -324,7 +355,8 @@ class _JobPostingPageState extends State<JobPostingPage> {
                               labelText: l10n.plantationLocation,
                               prefixIcon: const Icon(Icons.location_on),
                               border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(12)),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
                               filled: true,
                               fillColor: inputFill,
                             ),
@@ -340,7 +372,8 @@ class _JobPostingPageState extends State<JobPostingPage> {
                               labelText: l10n.workersNeeded,
                               prefixIcon: const Icon(Icons.group),
                               border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(12)),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
                             ),
                             validator: (v) {
                               final count = int.tryParse(v ?? '');
@@ -355,9 +388,11 @@ class _JobPostingPageState extends State<JobPostingPage> {
                             keyboardType: TextInputType.number,
                             decoration: InputDecoration(
                               labelText: l10n.payment,
-                              prefixIcon: const Icon(Icons.payments),
+                              prefixIcon: const Icon(Icons.attach_money),
+                              suffixText: 'LKR',
                               border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(12)),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
                               filled: true,
                               fillColor: inputFill,
                             ),
@@ -376,12 +411,37 @@ class _JobPostingPageState extends State<JobPostingPage> {
                                 labelText: l10n.startDate,
                                 prefixIcon: const Icon(Icons.calendar_today),
                                 border: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(12)),
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
                                 filled: true,
                                 fillColor: inputFill,
                               ),
                               child: Text(_formatDate(_selectedDate)),
                             ),
+                          ),
+                          const SizedBox(height: 16),
+                          TextFormField(
+                            controller: _phoneController,
+                            keyboardType: TextInputType.phone,
+                            decoration: InputDecoration(
+                              labelText: 'Contact Number',
+                              hintText: 'e.g. 0771234567',
+                              prefixIcon: const Icon(Icons.phone),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              filled: true,
+                              fillColor: Colors.grey[50],
+                            ),
+                            validator: (value) {
+                              if (value == null || value.isEmpty) {
+                                return 'Please enter contact number';
+                              }
+                              if (value.length != 10) {
+                                return 'Enter valid 10-digit number';
+                              }
+                              return null;
+                            },
                           ),
                           const SizedBox(height: 32),
                           SizedBox(
@@ -392,17 +452,20 @@ class _JobPostingPageState extends State<JobPostingPage> {
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: Colors.green,
                                 shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(12)),
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
                               ),
                               child: _isSubmitting
                                   ? const CircularProgressIndicator(
-                                      color: Colors.white)
+                                      color: Colors.white,
+                                    )
                                   : Text(
                                       l10n.postJobButton,
                                       style: const TextStyle(
-                                          fontSize: 18,
-                                          fontWeight: FontWeight.bold,
-                                          color: Colors.white),
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.white,
+                                      ),
                                     ),
                             ),
                           ),
@@ -418,5 +481,16 @@ class _JobPostingPageState extends State<JobPostingPage> {
         ),
       ),
     );
+  }
+
+  @override
+  void dispose() {
+    _jobTitleController.dispose();
+    _descriptionController.dispose();
+    _locationController.dispose();
+    _wageController.dispose();
+    _workersController.dispose();
+    _phoneController.dispose(); // ADD THIS
+    super.dispose();
   }
 }

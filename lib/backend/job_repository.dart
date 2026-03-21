@@ -33,7 +33,9 @@ class JobRecord {
   final DateTime? createdAt;
   final DateTime? updatedAt;
 
-  factory JobRecord.fromSnapshot(DocumentSnapshot<Map<String, dynamic>> snapshot) {
+  factory JobRecord.fromSnapshot(
+    DocumentSnapshot<Map<String, dynamic>> snapshot,
+  ) {
     final data = snapshot.data() ?? <String, dynamic>{};
     return JobRecord(
       id: snapshot.id,
@@ -43,8 +45,7 @@ class JobRecord {
       jobType: (data['jobType'] as String?) ?? '',
       paymentRate: ((data['paymentRate'] as num?) ?? 0).toDouble(),
       requiredWorkers: ((data['requiredWorkers'] as num?) ?? 0).toInt(),
-      startDate:
-          (data['startDate'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      startDate: (data['startDate'] as Timestamp?)?.toDate() ?? DateTime.now(),
       status: (data['status'] as String?) ?? 'open',
       landownerId: (data['landownerId'] as String?) ?? '',
       landownerName: (data['landownerName'] as String?) ?? 'Unknown landowner',
@@ -101,8 +102,7 @@ class WorkerApplicationRecord {
       workerPhone: (data['workerPhone'] as String?) ?? '',
       location: (data['location'] as String?) ?? '',
       paymentRate: ((data['paymentRate'] as num?) ?? 0).toDouble(),
-      startDate:
-          (data['startDate'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      startDate: (data['startDate'] as Timestamp?)?.toDate() ?? DateTime.now(),
       status: (data['status'] as String?) ?? 'submitted',
       landownerName: (data['landownerName'] as String?) ?? 'Unknown landowner',
       decisionDeadline: (data['decisionDeadline'] as Timestamp?)?.toDate(),
@@ -230,13 +230,14 @@ class WorkerGroupRecord {
       groupName: (data['groupName'] as String?) ?? 'Unnamed Group',
       coordinatorId: (data['coordinatorId'] as String?) ?? '',
       coordinatorName: (data['coordinatorName'] as String?) ?? 'Coordinator',
-      memberIds: rawMemberIds.map((id) => id.toString()).toList(growable: false),
+      memberIds: rawMemberIds
+          .map((id) => id.toString())
+          .toList(growable: false),
       members: rawMembers
           .whereType<Map>()
           .map(
-            (member) => member.map(
-              (key, value) => MapEntry(key.toString(), value),
-            ),
+            (member) =>
+                member.map((key, value) => MapEntry(key.toString(), value)),
           )
           .toList(growable: false),
       status: (data['status'] as String?) ?? 'active',
@@ -293,7 +294,9 @@ class GroupJobApplicationRecord {
       coordinatorName: (data['coordinatorName'] as String?) ?? 'Coordinator',
       landownerId: (data['landownerId'] as String?) ?? '',
       landownerName: (data['landownerName'] as String?) ?? 'Unknown landowner',
-      memberIds: rawMemberIds.map((id) => id.toString()).toList(growable: false),
+      memberIds: rawMemberIds
+          .map((id) => id.toString())
+          .toList(growable: false),
       status: (data['status'] as String?) ?? 'submitted',
       createdAt: (data['createdAt'] as Timestamp?)?.toDate(),
       updatedAt: (data['updatedAt'] as Timestamp?)?.toDate(),
@@ -311,24 +314,24 @@ class JobRepository {
   static CollectionReference<Map<String, dynamic>> get _jobsCollection =>
       _firestore.collection('jobs');
 
-  static CollectionReference<Map<String, dynamic>> get _applicationsCollection =>
-      _firestore.collection('applications');
+  static CollectionReference<Map<String, dynamic>>
+  get _applicationsCollection => _firestore.collection('applications');
 
   static CollectionReference<Map<String, dynamic>> get _schedulesCollection =>
       _firestore.collection('schedules');
 
-  static CollectionReference<Map<String, dynamic>> get _taskProgressCollection =>
-      _firestore.collection('task_progress');
+  static CollectionReference<Map<String, dynamic>>
+  get _taskProgressCollection => _firestore.collection('task_progress');
 
   static CollectionReference<Map<String, dynamic>> get _ratingsCollection =>
       _firestore.collection('ratings');
 
-    static CollectionReference<Map<String, dynamic>> get _workerGroupsCollection =>
-      _firestore.collection('worker_groups');
+  static CollectionReference<Map<String, dynamic>>
+  get _workerGroupsCollection => _firestore.collection('worker_groups');
 
-      static CollectionReference<Map<String, dynamic>>
-        get _groupApplicationsCollection =>
-          _firestore.collection('group_applications');
+  static CollectionReference<Map<String, dynamic>>
+  get _groupApplicationsCollection =>
+      _firestore.collection('group_applications');
 
   static DateTime _decisionDeadlineFromNow() {
     return DateTime.now().add(_approvalDecisionWindow);
@@ -371,6 +374,7 @@ class JobRepository {
     required double paymentRate,
     required int requiredWorkers,
     required DateTime startDate,
+    required String phone,
   }) async {
     final now = FieldValue.serverTimestamp();
     await _jobsCollection.add({
@@ -382,6 +386,7 @@ class JobRepository {
       'jobType': jobType,
       'paymentRate': paymentRate,
       'requiredWorkers': requiredWorkers,
+      'phone': phone,
       'startDate': Timestamp.fromDate(startDate),
       'status': 'open',
       'applicantCount': 0,
@@ -431,19 +436,16 @@ class JobRepository {
   }
 
   static Stream<List<JobRecord>> streamOpenJobs() {
-    return _jobsCollection
-        .where('status', isEqualTo: 'open')
-        .snapshots()
-        .map(
-          (snapshot) {
-            final jobs = snapshot.docs
-                .map(JobRecord.fromSnapshot)
-                .toList(growable: true);
+    return _jobsCollection.where('status', isEqualTo: 'open').snapshots().map((
+      snapshot,
+    ) {
+      final jobs = snapshot.docs
+          .map(JobRecord.fromSnapshot)
+          .toList(growable: true);
 
-            jobs.sort((a, b) => a.startDate.compareTo(b.startDate));
-            return jobs;
-          },
-        );
+      jobs.sort((a, b) => a.startDate.compareTo(b.startDate));
+      return jobs;
+    });
   }
 
   static Stream<List<JobRecord>> streamJobsForLandowner(String landownerId) {
@@ -471,30 +473,28 @@ class JobRepository {
     return _applicationsCollection
         .where('workerId', isEqualTo: workerId)
         .snapshots()
-        .map(
-          (snapshot) {
-            const visibleStatuses = <String>{
-              'approved',
-              'accepted',
-              'in_progress',
-              'completed',
-              'expired',
-            };
+        .map((snapshot) {
+          const visibleStatuses = <String>{
+            'approved',
+            'accepted',
+            'in_progress',
+            'completed',
+            'expired',
+          };
 
-            final applications = snapshot.docs
-                .map(WorkerApplicationRecord.fromSnapshot)
-                .where((record) => visibleStatuses.contains(record.status))
-                .toList(growable: true);
+          final applications = snapshot.docs
+              .map(WorkerApplicationRecord.fromSnapshot)
+              .where((record) => visibleStatuses.contains(record.status))
+              .toList(growable: true);
 
-            applications.sort((a, b) {
-              final aTime = a.createdAt?.millisecondsSinceEpoch ?? 0;
-              final bTime = b.createdAt?.millisecondsSinceEpoch ?? 0;
-              return bTime.compareTo(aTime);
-            });
+          applications.sort((a, b) {
+            final aTime = a.createdAt?.millisecondsSinceEpoch ?? 0;
+            final bTime = b.createdAt?.millisecondsSinceEpoch ?? 0;
+            return bTime.compareTo(aTime);
+          });
 
-            return applications;
-          },
-        );
+          return applications;
+        });
   }
 
   static Stream<Set<String>> streamAppliedJobIdsForWorker(String workerId) {
@@ -515,22 +515,20 @@ class JobRepository {
     return _groupApplicationsCollection
         .where('memberIds', arrayContains: workerId)
         .snapshots()
-        .map(
-          (snapshot) {
-            final labels = <String, String>{};
-            for (final doc in snapshot.docs) {
-              final data = doc.data();
-              final jobId = (data['jobId'] as String?) ?? '';
-              final groupName =
-                  ((data['groupName'] as String?) ?? 'Group').trim();
+        .map((snapshot) {
+          final labels = <String, String>{};
+          for (final doc in snapshot.docs) {
+            final data = doc.data();
+            final jobId = (data['jobId'] as String?) ?? '';
+            final groupName = ((data['groupName'] as String?) ?? 'Group')
+                .trim();
 
-              if (jobId.isNotEmpty) {
-                labels[jobId] = groupName.isEmpty ? 'Group' : groupName;
-              }
+            if (jobId.isNotEmpty) {
+              labels[jobId] = groupName.isEmpty ? 'Group' : groupName;
             }
-            return labels;
-          },
-        );
+          }
+          return labels;
+        });
   }
 
   static Stream<List<WorkerApplicationRecord>> streamApplicationsForJob(
@@ -652,10 +650,7 @@ class JobRepository {
       final deadline = (doc.data()['decisionDeadline'] as Timestamp?)?.toDate();
       if (_isExpiredDecision(deadline)) {
         changed = true;
-        batch.update(doc.reference, {
-          'status': 'expired',
-          'updatedAt': now,
-        });
+        batch.update(doc.reference, {'status': 'expired', 'updatedAt': now});
       }
     }
 
@@ -664,7 +659,9 @@ class JobRepository {
     }
   }
 
-  static Future<void> expirePendingApprovalsForLandowner(String landownerId) async {
+  static Future<void> expirePendingApprovalsForLandowner(
+    String landownerId,
+  ) async {
     final snapshot = await _applicationsCollection
         .where('landownerId', isEqualTo: landownerId)
         .where('status', isEqualTo: 'approved')
@@ -678,10 +675,7 @@ class JobRepository {
       final deadline = (doc.data()['decisionDeadline'] as Timestamp?)?.toDate();
       if (_isExpiredDecision(deadline)) {
         changed = true;
-        batch.update(doc.reference, {
-          'status': 'expired',
-          'updatedAt': now,
-        });
+        batch.update(doc.reference, {'status': 'expired', 'updatedAt': now});
       }
     }
 
@@ -706,14 +700,16 @@ class JobRepository {
       throw StateError('Only approved applications can be accepted.');
     }
 
-    final decisionDeadline =
-        (selectedData['decisionDeadline'] as Timestamp?)?.toDate();
+    final decisionDeadline = (selectedData['decisionDeadline'] as Timestamp?)
+        ?.toDate();
     if (_isExpiredDecision(decisionDeadline)) {
       await selectedRef.update({
         'status': 'expired',
         'updatedAt': FieldValue.serverTimestamp(),
       });
-      throw StateError('This offer has expired. Ask the landowner to approve again.');
+      throw StateError(
+        'This offer has expired. Ask the landowner to approve again.',
+      );
     }
 
     final selectedStartDate =
@@ -805,7 +801,9 @@ class JobRepository {
 
     final status = applicationData['status'] as String?;
     if (!(status == 'accepted' || status == 'in_progress')) {
-      throw StateError('Progress can only be added to accepted or in-progress jobs.');
+      throw StateError(
+        'Progress can only be added to accepted or in-progress jobs.',
+      );
     }
 
     final jobId = (applicationData['jobId'] as String?) ?? '';
@@ -837,8 +835,7 @@ class JobRepository {
 
       final currentTotal = ((jobData['totalQuillCount'] as num?) ?? 0).toInt();
       final jobStatus = (jobData['status'] as String?) ?? 'open';
-      final nextJobStatus =
-          jobStatus == 'closed' ? 'closed' : 'in_progress';
+      final nextJobStatus = jobStatus == 'closed' ? 'closed' : 'in_progress';
 
       transaction.update(jobRef, {
         'totalQuillCount': currentTotal + quillCount,
@@ -900,10 +897,7 @@ class JobRepository {
         .get();
 
     final batch = _firestore.batch();
-    batch.update(appRef, {
-      'status': 'completed',
-      'updatedAt': now,
-    });
+    batch.update(appRef, {'status': 'completed', 'updatedAt': now});
 
     if (scheduleQuery.docs.isNotEmpty) {
       batch.update(scheduleQuery.docs.first.reference, {
@@ -996,8 +990,10 @@ class JobRepository {
       final toUserSnapshot = await toUserRef.get();
       final toUserData = toUserSnapshot.data() ?? <String, dynamic>{};
 
-      final currentRatings = ((toUserData['totalRatings'] as num?) ?? 0).toDouble();
-      final currentRatingSum = ((toUserData['totalRatingSum'] as num?) ?? 0).toDouble();
+      final currentRatings = ((toUserData['totalRatings'] as num?) ?? 0)
+          .toDouble();
+      final currentRatingSum = ((toUserData['totalRatingSum'] as num?) ?? 0)
+          .toDouble();
       final newTotal = currentRatings + 1;
       final newSum = currentRatingSum + rating;
       final newAverage = newSum / newTotal;
@@ -1021,13 +1017,15 @@ class JobRepository {
 
     final completedCount = applicationsSnapshot.docs.length;
 
-    final userSnapshot =
-        await _firestore.collection('users').doc(workerId).get();
+    final userSnapshot = await _firestore
+        .collection('users')
+        .doc(workerId)
+        .get();
     final userData = userSnapshot.data() ?? <String, dynamic>{};
 
     final totalRatings = ((userData['totalRatings'] as num?) ?? 0).toDouble();
-    final totalRatingSum =
-        ((userData['totalRatingSum'] as num?) ?? 0).toDouble();
+    final totalRatingSum = ((userData['totalRatingSum'] as num?) ?? 0)
+        .toDouble();
     final averageRating = totalRatings > 0
         ? totalRatingSum / totalRatings
         : ((userData['averageRating'] as num?) ?? 0).toDouble();
@@ -1049,13 +1047,15 @@ class JobRepository {
 
     final completedJobsCount = jobsSnapshot.docs.length;
 
-    final userSnapshot =
-        await _firestore.collection('users').doc(landownerId).get();
+    final userSnapshot = await _firestore
+        .collection('users')
+        .doc(landownerId)
+        .get();
     final userData = userSnapshot.data() ?? <String, dynamic>{};
 
     final totalRatings = ((userData['totalRatings'] as num?) ?? 0).toDouble();
-    final totalRatingSum =
-        ((userData['totalRatingSum'] as num?) ?? 0).toDouble();
+    final totalRatingSum = ((userData['totalRatingSum'] as num?) ?? 0)
+        .toDouble();
     final averageRating = totalRatings > 0
         ? totalRatingSum / totalRatings
         : ((userData['averageRating'] as num?) ?? 0).toDouble();
@@ -1067,26 +1067,26 @@ class JobRepository {
     };
   }
 
-  static Stream<List<WorkerGroupRecord>> streamGroupsForWorker(String workerId) {
+  static Stream<List<WorkerGroupRecord>> streamGroupsForWorker(
+    String workerId,
+  ) {
     return _workerGroupsCollection
         .where('memberIds', arrayContains: workerId)
         .snapshots()
-        .map(
-          (snapshot) {
-            final groups = snapshot.docs
-                .map(WorkerGroupRecord.fromSnapshot)
-                .where((group) => group.status == 'active')
-                .toList(growable: true);
+        .map((snapshot) {
+          final groups = snapshot.docs
+              .map(WorkerGroupRecord.fromSnapshot)
+              .where((group) => group.status == 'active')
+              .toList(growable: true);
 
-            groups.sort((a, b) {
-              final aTime = a.createdAt?.millisecondsSinceEpoch ?? 0;
-              final bTime = b.createdAt?.millisecondsSinceEpoch ?? 0;
-              return bTime.compareTo(aTime);
-            });
+          groups.sort((a, b) {
+            final aTime = a.createdAt?.millisecondsSinceEpoch ?? 0;
+            final bTime = b.createdAt?.millisecondsSinceEpoch ?? 0;
+            return bTime.compareTo(aTime);
+          });
 
-            return groups;
-          },
-        );
+          return groups;
+        });
   }
 
   static Future<void> createWorkerGroup({
@@ -1235,7 +1235,9 @@ class JobRepository {
       }
 
       if (memberId == coordinatorId) {
-        throw StateError('Coordinator cannot remove self. Use Exit Group instead.');
+        throw StateError(
+          'Coordinator cannot remove self. Use Exit Group instead.',
+        );
       }
 
       final hasActiveCommitmentForMember = await _hasBlockingGroupCommitment(
@@ -1263,9 +1265,8 @@ class JobRepository {
       final updatedMembers = rawMembers
           .whereType<Map>()
           .map(
-            (member) => member.map(
-              (key, value) => MapEntry(key.toString(), value),
-            ),
+            (member) =>
+                member.map((key, value) => MapEntry(key.toString(), value)),
           )
           .where((member) => (member['workerId'] as String?) != memberId)
           .toList(growable: false);
@@ -1325,14 +1326,15 @@ class JobRepository {
       final members = rawMembers
           .whereType<Map>()
           .map(
-            (member) => member.map(
-              (key, value) => MapEntry(key.toString(), value),
-            ),
+            (member) =>
+                member.map((key, value) => MapEntry(key.toString(), value)),
           )
           .toList(growable: true);
 
       memberIds.removeWhere((id) => id == memberId);
-      members.removeWhere((member) => (member['workerId'] as String?) == memberId);
+      members.removeWhere(
+        (member) => (member['workerId'] as String?) == memberId,
+      );
 
       if (memberIds.isEmpty) {
         transaction.delete(groupRef);
@@ -1410,44 +1412,39 @@ class JobRepository {
   }
 
   static Stream<List<GroupJobApplicationRecord>>
-      streamGroupApplicationsForCoordinator(String coordinatorId) {
+  streamGroupApplicationsForCoordinator(String coordinatorId) {
     return _groupApplicationsCollection
         .where('coordinatorId', isEqualTo: coordinatorId)
         .snapshots()
-        .map(
-          (snapshot) {
-            final applications = snapshot.docs
-                .map(GroupJobApplicationRecord.fromSnapshot)
-                .toList(growable: true);
-            applications.sort((a, b) {
-              final aTime = a.createdAt?.millisecondsSinceEpoch ?? 0;
-              final bTime = b.createdAt?.millisecondsSinceEpoch ?? 0;
-              return bTime.compareTo(aTime);
-            });
-            return applications;
-          },
-        );
+        .map((snapshot) {
+          final applications = snapshot.docs
+              .map(GroupJobApplicationRecord.fromSnapshot)
+              .toList(growable: true);
+          applications.sort((a, b) {
+            final aTime = a.createdAt?.millisecondsSinceEpoch ?? 0;
+            final bTime = b.createdAt?.millisecondsSinceEpoch ?? 0;
+            return bTime.compareTo(aTime);
+          });
+          return applications;
+        });
   }
 
-  static Stream<List<GroupJobApplicationRecord>> streamGroupApplicationsForWorker(
-    String workerId,
-  ) {
+  static Stream<List<GroupJobApplicationRecord>>
+  streamGroupApplicationsForWorker(String workerId) {
     return _groupApplicationsCollection
         .where('memberIds', arrayContains: workerId)
         .snapshots()
-        .map(
-          (snapshot) {
-            final applications = snapshot.docs
-                .map(GroupJobApplicationRecord.fromSnapshot)
-                .toList(growable: true);
-            applications.sort((a, b) {
-              final aTime = a.createdAt?.millisecondsSinceEpoch ?? 0;
-              final bTime = b.createdAt?.millisecondsSinceEpoch ?? 0;
-              return bTime.compareTo(aTime);
-            });
-            return applications;
-          },
-        );
+        .map((snapshot) {
+          final applications = snapshot.docs
+              .map(GroupJobApplicationRecord.fromSnapshot)
+              .toList(growable: true);
+          applications.sort((a, b) {
+            final aTime = a.createdAt?.millisecondsSinceEpoch ?? 0;
+            final bTime = b.createdAt?.millisecondsSinceEpoch ?? 0;
+            return bTime.compareTo(aTime);
+          });
+          return applications;
+        });
   }
 
   static Stream<List<GroupJobApplicationRecord>> streamGroupApplicationsForJob(
@@ -1456,19 +1453,17 @@ class JobRepository {
     return _groupApplicationsCollection
         .where('jobId', isEqualTo: jobId)
         .snapshots()
-        .map(
-          (snapshot) {
-            final applications = snapshot.docs
-                .map(GroupJobApplicationRecord.fromSnapshot)
-                .toList(growable: true);
-            applications.sort((a, b) {
-              final aTime = a.createdAt?.millisecondsSinceEpoch ?? 0;
-              final bTime = b.createdAt?.millisecondsSinceEpoch ?? 0;
-              return bTime.compareTo(aTime);
-            });
-            return applications;
-          },
-        );
+        .map((snapshot) {
+          final applications = snapshot.docs
+              .map(GroupJobApplicationRecord.fromSnapshot)
+              .toList(growable: true);
+          applications.sort((a, b) {
+            final aTime = a.createdAt?.millisecondsSinceEpoch ?? 0;
+            final bTime = b.createdAt?.millisecondsSinceEpoch ?? 0;
+            return bTime.compareTo(aTime);
+          });
+          return applications;
+        });
   }
 
   static Future<void> submitGroupApplication({
@@ -1679,10 +1674,7 @@ class JobRepository {
     final scheduleDateKey = _scheduleDateKey(startDate);
     final batch = _firestore.batch();
 
-    batch.update(appRef, {
-      'status': 'accepted',
-      'updatedAt': now,
-    });
+    batch.update(appRef, {'status': 'accepted', 'updatedAt': now});
 
     for (final memberId in memberIds) {
       final scheduleRef = _schedulesCollection.doc();

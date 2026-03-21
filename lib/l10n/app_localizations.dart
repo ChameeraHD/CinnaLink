@@ -399,6 +399,30 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Cinnamon Rolling'**
   String get rolling;
+
+  /// No description provided for @drying.
+  ///
+  /// In en, this message translates to:
+  /// **'Cinnamon Drying'**
+  String get drying;
+
+  /// No description provided for @gradingSorting.
+  ///
+  /// In en, this message translates to:
+  /// **'Cinnamon Grading & Sorting'**
+  String get gradingSorting;
+
+  /// No description provided for @packingTransporting.
+  ///
+  /// In en, this message translates to:
+  /// **'Cinnamon Packing & Transport'**
+  String get packingTransporting;
+
+  /// No description provided for @plantationMaintenance.
+  ///
+  /// In en, this message translates to:
+  /// **'Cinnamon Plantation Maintenance'**
+  String get plantationMaintenance;
 }
 
 class _AppLocalizationsDelegate

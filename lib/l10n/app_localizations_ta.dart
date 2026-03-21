@@ -159,4 +159,16 @@ class AppLocalizationsTa extends AppLocalizations {
 
   @override
   String get rolling => 'இலவங்கப்பட்டை சுருட்டுதல்';
+
+  @override
+  String get drying => 'Cinnamon Drying';
+
+  @override
+  String get gradingSorting => 'Cinnamon Grading & Sorting';
+
+  @override
+  String get packingTransporting => 'Cinnamon Packing & Transport';
+
+  @override
+  String get plantationMaintenance => 'Cinnamon Plantation Maintenance';
 }

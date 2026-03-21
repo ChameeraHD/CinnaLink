@@ -2,7 +2,7 @@ import 'package:cinnalink/l10n/app_localizations.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart'; // Add this
- // Add this
+// Add this
 import 'backend/auth.dart';
 import 'firebase_options.dart';
 import 'frontend/landowner_dashboard.dart';
@@ -29,7 +29,7 @@ class MyApp extends StatefulWidget {
 class MyAppState extends State<MyApp> {
   bool _darkMode = false;
   // 1. Added Locale variable
-  
+
   Locale _locale = const Locale('en');
 
   void toggleDarkMode(bool value) {
@@ -57,16 +57,23 @@ class MyAppState extends State<MyApp> {
       useMaterial3: true,
       colorScheme: scheme,
       scaffoldBackgroundColor: const Color(0xFFF6F8F7),
-      snackBarTheme: const SnackBarThemeData(behavior: SnackBarBehavior.floating),
+      snackBarTheme: const SnackBarThemeData(
+        behavior: SnackBarBehavior.floating,
+      ),
       cardTheme: const CardThemeData(
         elevation: 3,
         clipBehavior: Clip.antiAlias,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(16))),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.all(Radius.circular(16)),
+        ),
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: Colors.white,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 14,
+          vertical: 12,
+        ),
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
       ),
     );
@@ -82,7 +89,9 @@ class MyAppState extends State<MyApp> {
       useMaterial3: true,
       colorScheme: scheme,
       scaffoldBackgroundColor: const Color(0xFF0E1513),
-      snackBarTheme: const SnackBarThemeData(behavior: SnackBarBehavior.floating),
+      snackBarTheme: const SnackBarThemeData(
+        behavior: SnackBarBehavior.floating,
+      ),
       cardTheme: CardThemeData(
         color: const Color(0xFF16211E),
         elevation: 2,
@@ -95,7 +104,10 @@ class MyAppState extends State<MyApp> {
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: const Color(0xFF1C2A25),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 14,
+          vertical: 12,
+        ),
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
       ),
       bottomNavigationBarTheme: BottomNavigationBarThemeData(
@@ -111,12 +123,12 @@ class MyAppState extends State<MyApp> {
     return MaterialApp(
       title: 'CinnaLink',
       debugShowCheckedModeBanner: false,
+
       // 3. Bind the current locale and localization delegates
-      
       locale: _locale,
       localizationsDelegates: AppLocalizations.localizationsDelegates,
       supportedLocales: AppLocalizations.supportedLocales,
-      
+
       theme: _buildLightTheme(),
       darkTheme: _buildDarkTheme(),
       themeMode: _darkMode ? ThemeMode.dark : ThemeMode.light,
@@ -133,15 +145,14 @@ class AuthGate extends StatelessWidget {
     return StreamBuilder(
       stream: AuthService.authStateChanges(),
       builder: (context, snapshot) {
-HEAD
         print(
           'AuthGate: Auth state changed - ConnectionState: ${snapshot.connectionState}, HasData: ${snapshot.hasData}, User: ${snapshot.data?.uid ?? "null"}',
         );
 
-
-c6d881f5c993b9dbf9e68a67b302ff055b600222
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Scaffold(body: Center(child: CircularProgressIndicator()));
+          return const Scaffold(
+            body: Center(child: CircularProgressIndicator()),
+          );
         }
 
         if (!snapshot.hasData) {
@@ -154,7 +165,7 @@ c6d881f5c993b9dbf9e68a67b302ff055b600222
           future: () async {
             await AuthService.ensureCurrentUserDocumentExists();
             final profile = await AuthService.getCurrentUserProfile();
-            
+
             // --- Sync Settings from Firestore ---
             if (profile != null) {
               // Sync Dark Mode
@@ -166,12 +177,15 @@ c6d881f5c993b9dbf9e68a67b302ff055b600222
               if (savedLang != null) {
                 if (savedLang == 'Tamil') {
                   appState?.setLocale(const Locale('ta'));
-                } else if (savedLang == 'Sinhala') appState?.setLocale(const Locale('si'));
-                else appState?.setLocale(const Locale('en'));
+                } else if (savedLang == 'Sinhala')
+                  appState?.setLocale(const Locale('si'));
+                else
+                  appState?.setLocale(const Locale('en'));
               }
             }
 
-            final isVerified = await AuthService.refreshAndSyncEmailVerification();
+            final isVerified =
+                await AuthService.refreshAndSyncEmailVerification();
             if (!isVerified) {
               return '__unverified__';
             }
@@ -180,7 +194,9 @@ c6d881f5c993b9dbf9e68a67b302ff055b600222
           }(),
           builder: (context, roleSnapshot) {
             if (roleSnapshot.connectionState == ConnectionState.waiting) {
-              return const Scaffold(body: Center(child: CircularProgressIndicator()));
+              return const Scaffold(
+                body: Center(child: CircularProgressIndicator()),
+              );
             }
 
             final role = roleSnapshot.data;

@@ -159,4 +159,16 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get rolling => 'Cinnamon Rolling';
+
+  @override
+  String get drying => 'Cinnamon Drying';
+
+  @override
+  String get gradingSorting => 'Cinnamon Grading & Sorting';
+
+  @override
+  String get packingTransporting => 'Cinnamon Packing & Transport';
+
+  @override
+  String get plantationMaintenance => 'Cinnamon Plantation Maintenance';
 }

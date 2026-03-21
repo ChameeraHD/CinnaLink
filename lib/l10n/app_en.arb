@@ -49,5 +49,10 @@
   "cutting": "Cinnamon Cutting",
   "peeling": "Cinnamon Peeling",
   "scraping": "Cinnamon Scraping",
-  "rolling": "Cinnamon Rolling"
+  "rolling": "Cinnamon Rolling",
+  "drying": "Cinnamon Drying",
+  "gradingSorting": "Cinnamon Grading & Sorting",
+  "packingTransporting": "Cinnamon Packing & Transport",
+  "plantationMaintenance": "Cinnamon Plantation Maintenance"
+
 }
