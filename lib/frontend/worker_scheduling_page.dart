@@ -14,6 +14,10 @@ class WorkerSchedulingPage extends StatefulWidget {
 class _WorkerSchedulingPageState extends State<WorkerSchedulingPage> {
   final WorkerSchedulingController _controller = const WorkerSchedulingController();
   String? _actionApplicationId;
+  final Set<String> _ratingSubmitting = <String>{};
+  final Map<String, bool> _ratedWorkers = {}; // Track which workers have been rated
+  final Map<String, Future<List<String>>> _groupMemberNamesFutures =
+      <String, Future<List<String>>>{};
 
   @override
   void initState() {
@@ -144,6 +148,11 @@ class _WorkerSchedulingPageState extends State<WorkerSchedulingPage> {
     return '${date.year}-$month-$day';
   }
 
+  DateTime _estimatedEndDate(DateTime startDate, int estimatedDays) {
+    final inclusiveDays = estimatedDays > 0 ? estimatedDays - 1 : 0;
+    return startDate.add(Duration(days: inclusiveDays));
+  }
+
   Color _statusColor(String status) {
     switch (status) {
       case 'approved':
@@ -211,6 +220,10 @@ class _WorkerSchedulingPageState extends State<WorkerSchedulingPage> {
         return 'Approved';
       case 'accepted':
         return 'Accepted';
+      case 'in_progress':
+        return 'In Progress';
+      case 'completed':
+        return 'Completed';
       case 'rejected':
         return 'Rejected';
       case 'declined_by_group':
@@ -218,6 +231,333 @@ class _WorkerSchedulingPageState extends State<WorkerSchedulingPage> {
       default:
         return status;
     }
+  }
+
+  Future<List<String>> _resolveGroupMemberNames(
+    GroupJobApplicationRecord application,
+  ) {
+    if (application.memberNames.isNotEmpty) {
+      return Future<List<String>>.value(application.memberNames);
+    }
+
+    return _groupMemberNamesFutures.putIfAbsent(
+      application.id,
+      () => JobRepository.fetchGroupMemberNames(
+        groupId: application.groupId,
+        fallbackMemberIds: application.memberIds,
+      ),
+    );
+  }
+
+  Future<void> _showWorkerRatingDialog({
+    required WorkerApplicationRecord application,
+  }) async {
+    final landownerId = AuthService.currentUserId;
+    if (landownerId == null) {
+      return;
+    }
+
+    final profile = await AuthService.getCurrentUserProfile();
+    final landownerName = (profile?['name'] as String?)?.trim().isNotEmpty == true
+        ? (profile?['name'] as String)
+        : 'Landowner';
+
+    if (!mounted) {
+      return;
+    }
+
+    final feedbackController = TextEditingController();
+    double selectedRating = 5.0;
+
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            final isSubmitting = _ratingSubmitting.contains(application.id);
+            return AlertDialog(
+              title: const Text('Rate Worker'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text('How would you rate ${application.workerName}?'),
+                  const SizedBox(height: 16),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: List.generate(5, (index) {
+                      final starRating = index + 1.0;
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 4),
+                        child: GestureDetector(
+                          onTap: isSubmitting
+                              ? null
+                              : () {
+                                  setDialogState(() {
+                                    selectedRating = starRating;
+                                  });
+                                },
+                          child: Icon(
+                            Icons.star,
+                            size: 34,
+                            color: starRating <= selectedRating
+                                ? Colors.amber
+                                : Colors.grey[300],
+                          ),
+                        ),
+                      );
+                    }),
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: feedbackController,
+                    maxLines: 3,
+                    decoration: const InputDecoration(
+                      labelText: 'Feedback (optional)',
+                      hintText: 'Share your experience...',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: isSubmitting
+                      ? null
+                      : () => Navigator.of(dialogContext).pop(),
+                  child: const Text('Cancel'),
+                ),
+                ElevatedButton(
+                  onPressed: isSubmitting
+                      ? null
+                      : () async {
+                          final messenger = ScaffoldMessenger.of(this.context);
+                          setState(() {
+                            _ratingSubmitting.add(application.id);
+                          });
+
+                          try {
+                            await JobRepository.submitRating(
+                              fromUserId: landownerId,
+                              fromUserName: landownerName,
+                              toUserId: application.workerId,
+                              toUserName: application.workerName,
+                              jobId: application.jobId,
+                              rating: selectedRating,
+                              feedback: feedbackController.text.trim(),
+                            );
+
+                            if (!mounted) {
+                              return;
+                            }
+
+                            Navigator.of(this.context).pop();
+                            messenger.showSnackBar(
+                              const SnackBar(content: Text('Rating submitted. Thank you!')),
+                            );
+                          } catch (error) {
+                            if (!mounted) {
+                              return;
+                            }
+                            messenger.showSnackBar(
+                              SnackBar(content: Text(_controller.readableError(error))),
+                            );
+                          } finally {
+                            if (mounted) {
+                              setState(() {
+                                _ratingSubmitting.remove(application.id);
+                              });
+                            }
+                          }
+                        },
+                  child: isSubmitting
+                      ? const SizedBox(
+                          height: 18,
+                          width: 18,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : const Text('Submit Rating'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Future<void> _showGroupRatingDialog({
+    required GroupJobApplicationRecord application,
+  }) async {
+    final landownerId = AuthService.currentUserId;
+    if (landownerId == null) {
+      return;
+    }
+
+    final profile = await AuthService.getCurrentUserProfile();
+    final landownerName = (profile?['name'] as String?)?.trim().isNotEmpty == true
+        ? (profile?['name'] as String)
+        : 'Landowner';
+
+    if (!mounted) {
+      return;
+    }
+
+    final feedbackController = TextEditingController();
+    double selectedRating = 5.0;
+
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            final isSubmitting = _ratingSubmitting.contains(application.id);
+            return AlertDialog(
+              title: const Text('Rate Group Members'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'This rating will be submitted to all members of "${application.groupName}" (${application.memberIds.length} workers).',
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: List.generate(5, (index) {
+                      final starRating = index + 1.0;
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 4),
+                        child: GestureDetector(
+                          onTap: isSubmitting
+                              ? null
+                              : () {
+                                  setDialogState(() {
+                                    selectedRating = starRating;
+                                  });
+                                },
+                          child: Icon(
+                            Icons.star,
+                            size: 34,
+                            color: starRating <= selectedRating
+                                ? Colors.amber
+                                : Colors.grey[300],
+                          ),
+                        ),
+                      );
+                    }),
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: feedbackController,
+                    maxLines: 3,
+                    decoration: const InputDecoration(
+                      labelText: 'Feedback (optional)',
+                      hintText: 'Share your experience with this group...',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: isSubmitting
+                      ? null
+                      : () => Navigator.of(dialogContext).pop(),
+                  child: const Text('Cancel'),
+                ),
+                ElevatedButton(
+                  onPressed: isSubmitting
+                      ? null
+                      : () async {
+                          final messenger = ScaffoldMessenger.of(this.context);
+                          setState(() {
+                            _ratingSubmitting.add(application.id);
+                          });
+
+                          try {
+                            final result = await JobRepository.submitRatingToGroupMembers(
+                              landownerId: landownerId,
+                              landownerName: landownerName,
+                              groupApplicationId: application.id,
+                              rating: selectedRating,
+                              feedback: feedbackController.text.trim(),
+                            );
+
+                            if (!mounted) {
+                              return;
+                            }
+
+                            Navigator.of(this.context).pop();
+                            final submitted = result['submitted'] ?? 0;
+                            final skipped = result['skipped'] ?? 0;
+                            messenger.showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  'Submitted to $submitted member(s). Skipped $skipped already-rated member(s).',
+                                ),
+                              ),
+                            );
+                          } catch (error) {
+                            if (!mounted) {
+                              return;
+                            }
+                            messenger.showSnackBar(
+                              SnackBar(content: Text(_controller.readableError(error))),
+                            );
+                          } finally {
+                            if (mounted) {
+                              setState(() {
+                                _ratingSubmitting.remove(application.id);
+                              });
+                            }
+                          }
+                        },
+                  child: isSubmitting
+                      ? const SizedBox(
+                          height: 18,
+                          width: 18,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : const Text('Submit Group Rating'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Future<bool> _checkIfWorkerRated({
+    required String landownerId,
+    required String workerId,
+    required String jobId,
+  }) async {
+    final cacheKey = '$workerId-$jobId';
+    if (_ratedWorkers.containsKey(cacheKey)) {
+      return _ratedWorkers[cacheKey] ?? false;
+    }
+
+    final hasRating = await JobRepository.hasRatingForJob(
+      fromUserId: landownerId,
+      toUserId: workerId,
+      jobId: jobId,
+    );
+
+    if (mounted) {
+      setState(() {
+        _ratedWorkers[cacheKey] = hasRating;
+      });
+    }
+
+    return hasRating;
   }
 
   Widget _buildFlowLegend() {
@@ -413,7 +753,6 @@ class _WorkerSchedulingPageState extends State<WorkerSchedulingPage> {
                     runSpacing: 8,
                     children: [
                       Text('Pay: LKR ${application.paymentRate.toStringAsFixed(0)}'),
-                      Text('Start: ${_formatDate(application.startDate)}'),
                     ],
                   ),
                   if (application.status == 'approved') ...[
@@ -469,6 +808,38 @@ class _WorkerSchedulingPageState extends State<WorkerSchedulingPage> {
                           ),
                         ),
                       ],
+                    ),
+                  ],
+                  if (application.status == 'completed') ...[
+                    const SizedBox(height: 12),
+                    FutureBuilder<bool>(
+                      future: _checkIfWorkerRated(
+                        landownerId: AuthService.currentUserId ?? '',
+                        workerId: application.workerId,
+                        jobId: application.jobId,
+                      ),
+                      builder: (context, snapshot) {
+                        final alreadyRated = snapshot.data ?? false;
+                        return SizedBox(
+                          width: double.infinity,
+                          child: Tooltip(
+                            message: alreadyRated 
+                                ? 'You have already rated this worker for this job'
+                                : '',
+                            child: OutlinedButton.icon(
+                              onPressed: alreadyRated
+                                  ? null
+                                  : _ratingSubmitting.contains(application.id)
+                                      ? null
+                                      : () => _showWorkerRatingDialog(
+                                            application: application,
+                                          ),
+                              icon: const Icon(Icons.star_rate),
+                              label: Text(alreadyRated ? 'Rating Submitted' : 'Rate Worker'),
+                            ),
+                          ),
+                        );
+                      },
                     ),
                   ],
                 ],
@@ -649,9 +1020,18 @@ class _WorkerSchedulingPageState extends State<WorkerSchedulingPage> {
                     'Coordinator: ${application.coordinatorName}',
                     style: const TextStyle(color: Colors.grey),
                   ),
-                  Text(
-                    'Members: ${application.memberIds.length}',
-                    style: const TextStyle(color: Colors.grey),
+                  FutureBuilder<List<String>>(
+                    future: _resolveGroupMemberNames(application),
+                    builder: (context, memberSnapshot) {
+                      final names = memberSnapshot.data ?? const <String>[];
+                      final memberLabel = names.isEmpty
+                          ? 'Members: ${application.memberIds.length}'
+                          : 'Members: ${names.join(', ')}';
+                      return Text(
+                        memberLabel,
+                        style: const TextStyle(color: Colors.grey),
+                      );
+                    },
                   ),
                   if (application.status == 'submitted') ...[
                     const SizedBox(height: 10),
@@ -716,6 +1096,21 @@ class _WorkerSchedulingPageState extends State<WorkerSchedulingPage> {
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.blue,
                         ),
+                      ),
+                    ),
+                  ],
+                    if (application.status == 'completed') ...[
+                    const SizedBox(height: 10),
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        onPressed: _ratingSubmitting.contains(application.id)
+                            ? null
+                            : () => _showGroupRatingDialog(application: application),
+                        icon: const Icon(Icons.group),
+                        label: _ratingSubmitting.contains(application.id)
+                            ? const Text('Submitting...')
+                            : const Text('Rate Group Members'),
                       ),
                     ),
                   ],
@@ -926,6 +1321,9 @@ class _WorkerSchedulingPageState extends State<WorkerSchedulingPage> {
                                                   Text('Workers: ${job.requiredWorkers}'),
                                                   Text('Applicants: ${job.applicantCount}'),
                                                   Text('Start: ${_formatDate(job.startDate)}'),
+                                                  Text(
+                                                    'Est. End: ${_formatDate(_estimatedEndDate(job.startDate, job.estimatedDays))}',
+                                                  ),
                                                 ],
                                               ),
                                               _buildYieldSection(job.id),

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:cinnalink/l10n/app_localizations.dart';
 
 import '../backend/auth.dart';
+import 'profile_reviews_section.dart';
 
 class LandownerDetailsPage extends StatefulWidget {
   const LandownerDetailsPage({super.key});
@@ -21,6 +22,7 @@ class _LandownerDetailsPageState extends State<LandownerDetailsPage> {
   final _locationController = TextEditingController();
 
   bool _isLoading = true;
+  String _currentUserId = '';
 
   @override
   void initState() {
@@ -40,6 +42,7 @@ class _LandownerDetailsPageState extends State<LandownerDetailsPage> {
         _farmNameController.text = profile['farmName'] ?? '';
         _locationController.text = profile['location'] ?? '';
       }
+      _currentUserId = AuthService.currentUserId ?? '';
       _isLoading = false;
     });
   }
@@ -251,6 +254,44 @@ class _LandownerDetailsPageState extends State<LandownerDetailsPage> {
                                         fontSize: 18,
                                         fontWeight: FontWeight.bold,
                                       ),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 20),
+                                Card(
+                                  elevation: 8,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(16),
+                                  ),
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(24.0),
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        const Text(
+                                          'Ratings & Reviews',
+                                          style: TextStyle(
+                                            fontSize: 20,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 8),
+                                        const Text(
+                                          'Feedback from workers appears here.',
+                                          style: TextStyle(color: Colors.grey),
+                                        ),
+                                        const SizedBox(height: 14),
+                                        if (_currentUserId.isEmpty)
+                                          const Text(
+                                            'Unable to load ratings right now.',
+                                            style: TextStyle(color: Colors.grey),
+                                          )
+                                        else
+                                          ProfileReviewsSection(
+                                            userId: _currentUserId,
+                                            summaryTitle: 'Overall worker feedback',
+                                          ),
+                                      ],
                                     ),
                                   ),
                                 ),

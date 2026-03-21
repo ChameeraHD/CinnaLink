@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../backend/auth.dart';
-import 'email_verification_notice_page.dart';
 import 'password_reset_notice_page.dart';
 import 'register_page.dart';
 

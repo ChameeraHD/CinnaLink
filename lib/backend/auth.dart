@@ -119,6 +119,11 @@ class AuthService {
     required String role,
     required bool darkModeEnabled,
   }) async {
+    final phoneInUse = await isPhoneNumberInUse(phone: phone);
+    if (phoneInUse) {
+      throw StateError('This phone number is already used.');
+    }
+
     _debugLog('AuthService: Starting user registration for $email');
     final credential = await _auth.createUserWithEmailAndPassword(
       email: email,
@@ -141,6 +146,30 @@ class AuthService {
     }
 
     return credential;
+  }
+
+  static Future<bool> isPhoneNumberInUse({required String phone}) async {
+    final trimmedPhone = phone.trim();
+    if (trimmedPhone.isEmpty) {
+      return false;
+    }
+
+    final snapshot = await _firestore
+        .collection('users')
+        .where('phone', isEqualTo: trimmedPhone)
+        .limit(1)
+        .get();
+    return snapshot.docs.isNotEmpty;
+  }
+
+  static Future<bool> isEmailInUse({required String email}) async {
+    final trimmedEmail = email.trim();
+    if (trimmedEmail.isEmpty) {
+      return false;
+    }
+
+    final methods = await _auth.fetchSignInMethodsForEmail(trimmedEmail);
+    return methods.isNotEmpty;
   }
 
   static Future<void> _setUserDocument({
