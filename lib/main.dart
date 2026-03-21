@@ -8,9 +8,7 @@ import 'worker_dashboard.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   runApp(const MyApp());
 }
 
@@ -37,7 +35,9 @@ class AuthGate extends StatelessWidget {
     return StreamBuilder(
       stream: AuthService.authStateChanges(),
       builder: (context, snapshot) {
-        print('AuthGate: Auth state changed - ConnectionState: ${snapshot.connectionState}, HasData: ${snapshot.hasData}, User: ${snapshot.data?.uid ?? "null"}');
+        print(
+          'AuthGate: Auth state changed - ConnectionState: ${snapshot.connectionState}, HasData: ${snapshot.hasData}, User: ${snapshot.data?.uid ?? "null"}',
+        );
 
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Scaffold(
