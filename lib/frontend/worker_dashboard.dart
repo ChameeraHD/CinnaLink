@@ -1645,13 +1645,75 @@ class _ApprovedJobsPageState extends State<ApprovedJobsPage> {
     required GroupConflictResult conflictResult,
     required Map<String, dynamic> appData,
   }) async {
+    final allMemberIds =
+        ((appData['memberIds'] as List<dynamic>?) ?? const <dynamic>[])
+            .map((id) => id.toString())
+            .toList();
+    final allMemberNames =
+        ((appData['memberNames'] as List<dynamic>?) ?? const <dynamic>[])
+            .map((name) => name.toString())
+            .toList();
+
+    // Members with conflicts that will be removed
+    final conflictingMemberIds = conflictResult.conflictingMembers
+        .map((c) => c.memberId)
+        .toSet();
+    final numRemoved = conflictingMemberIds.length;
+
     var selectedMemberIds = Set<String>.from(conflictResult.availableMembers);
+    Set<String> addedReplacementMemberIds =
+        <String>{}; // Track newly added members to replace removed ones
+
+    // Available members that could be added as replacements (not already in group)
+    var availableReplacementMembers = <String, String>{};
+
+    if (numRemoved > 0) {
+      // Fetch all workers to find available replacements
+      try {
+        final allWorkersSnapshot = await FirebaseFirestore.instance
+            .collection('users')
+            .get();
+        for (final doc in allWorkersSnapshot.docs) {
+          final workerId = doc.id;
+          final workerName = (doc.data()['name'] as String?) ?? 'Worker';
+          // Only add if not already in this group application
+          if (!allMemberIds.contains(workerId)) {
+            // Check if this worker has conflicts
+            final hasConflict = await JobRepository.hasScheduleConflict(
+              workerId: workerId,
+              startDate:
+                  (appData['startDate'] as Timestamp?)?.toDate() ??
+                  DateTime.now(),
+              estimatedDays: ((appData['estimatedDays'] as num?) ?? 1).toInt(),
+            );
+            if (!hasConflict) {
+              availableReplacementMembers[workerId] = workerName;
+            }
+          }
+        }
+      } catch (e) {
+        // Error fetching available workers - continue without replacements
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Could not load available workers: $e')),
+          );
+        }
+      }
+    }
 
     await showDialog<void>(
       context: context,
+      barrierDismissible: false,
       builder: (dialogContext) {
         return StatefulBuilder(
           builder: (context, setState) {
+            final remainingToAdd =
+                numRemoved - addedReplacementMemberIds.length;
+            final canProceed =
+                numRemoved == 0 ||
+                (addedReplacementMemberIds.length == numRemoved &&
+                    selectedMemberIds.isNotEmpty);
+
             return AlertDialog(
               title: const Text('Conflicting Members Detected'),
               content: SingleChildScrollView(
@@ -1660,60 +1722,128 @@ class _ApprovedJobsPageState extends State<ApprovedJobsPage> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const Text(
-                      'The following members have scheduling conflicts and cannot be scheduled:',
+                      'The following members have scheduling conflicts:',
                       style: TextStyle(fontWeight: FontWeight.bold),
                     ),
                     const SizedBox(height: 12),
                     ...conflictResult.conflictingMembers.map(
                       (conflict) => Padding(
                         padding: const EdgeInsets.only(bottom: 8),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              '${conflict.memberName} - Conflict:',
-                              style: const TextStyle(
-                                fontWeight: FontWeight.bold,
-                                color: Colors.red,
-                              ),
+                        child: Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: Colors.red.withValues(alpha: 0.1),
+                            border: Border.all(
+                              color: Colors.red.withValues(alpha: 0.3),
                             ),
-                            Padding(
-                              padding: const EdgeInsets.only(left: 12),
-                              child: Text(
-                                '${conflict.conflictingJobTitle}\n'
-                                '${conflict.conflictingStartDate.toString().split(' ')[0]} - '
-                                '${conflict.conflictingEndDate.toString().split(' ')[0]}',
-                                style: const TextStyle(fontSize: 12),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                '${conflict.memberName} - WILL BE REMOVED',
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.red,
+                                ),
                               ),
-                            ),
-                          ],
+                              Padding(
+                                padding: const EdgeInsets.only(
+                                  left: 12,
+                                  top: 4,
+                                ),
+                                child: Text(
+                                  '${conflict.conflictingJobTitle}\n'
+                                  '${conflict.conflictingStartDate.toString().split(' ')[0]} - '
+                                  '${conflict.conflictingEndDate.toString().split(' ')[0]}',
+                                  style: const TextStyle(fontSize: 12),
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                     ),
                     const SizedBox(height: 16),
+                    if (numRemoved > 0) ...[
+                      const Text(
+                        'REQUIRED: Add replacement members',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: Colors.orange,
+                        ),
+                      ),
+                      Text(
+                        'You must add $numRemoved new member(s) to replace the removed one(s). $remainingToAdd more needed.',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: Colors.orange,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      const Text(
+                        'Select available workers to add:',
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 8),
+                      if (availableReplacementMembers.isEmpty)
+                        const Padding(
+                          padding: EdgeInsets.only(top: 8),
+                          child: Text(
+                            'No available workers without conflicts.',
+                            style: TextStyle(color: Colors.grey, fontSize: 12),
+                          ),
+                        )
+                      else
+                        ...availableReplacementMembers.entries.map((entry) {
+                          final memberId = entry.key;
+                          final memberName = entry.value;
+                          final isSelected = addedReplacementMemberIds.contains(
+                            memberId,
+                          );
+                          final isDisabled = !isSelected && remainingToAdd == 0;
+                          return CheckboxListTile(
+                            value: isSelected,
+                            onChanged: isDisabled
+                                ? null
+                                : (value) {
+                                    setState(() {
+                                      if (value == true) {
+                                        addedReplacementMemberIds.add(memberId);
+                                      } else {
+                                        addedReplacementMemberIds.remove(
+                                          memberId,
+                                        );
+                                      }
+                                    });
+                                  },
+                            title: Text(
+                              memberName,
+                              style: TextStyle(
+                                color: isDisabled ? Colors.grey : null,
+                              ),
+                            ),
+                            dense: true,
+                          );
+                        }),
+                      const SizedBox(height: 12),
+                    ],
                     const Text(
-                      'Members who can be scheduled:',
+                      'Members who will be kept:',
                       style: TextStyle(fontWeight: FontWeight.bold),
                     ),
                     const SizedBox(height: 8),
                     ...conflictResult.availableMembers.map((memberId) {
-                      final memberNames =
-                          ((appData['memberNames'] as List<dynamic>?) ??
-                                  const <dynamic>[])
-                              .map((name) => name.toString())
-                              .toList();
-                      final memberIds =
-                          ((appData['memberIds'] as List<dynamic>?) ??
-                                  const <dynamic>[])
-                              .map((id) => id.toString())
-                              .toList();
-                      final memberIndex = memberIds.indexOf(memberId);
+                      final memberIndex = allMemberIds.indexOf(memberId);
                       final memberName =
-                          memberIndex >= 0 && memberIndex < memberNames.length
-                          ? memberNames[memberIndex]
+                          memberIndex >= 0 &&
+                              memberIndex < allMemberNames.length
+                          ? allMemberNames[memberIndex]
                           : 'Worker';
+                      final isCheked = selectedMemberIds.contains(memberId);
                       return CheckboxListTile(
-                        value: selectedMemberIds.contains(memberId),
+                        value: isCheked,
                         onChanged: (value) {
                           setState(() {
                             if (value == true) {
@@ -1738,17 +1868,24 @@ class _ApprovedJobsPageState extends State<ApprovedJobsPage> {
                   child: const Text('Cancel'),
                 ),
                 ElevatedButton(
-                  onPressed: selectedMemberIds.isEmpty
-                      ? null
-                      : () {
+                  onPressed: canProceed
+                      ? () {
                           Navigator.of(dialogContext).pop();
+                          final finalMemberIds = <String>{};
+                          finalMemberIds.addAll(selectedMemberIds);
+                          finalMemberIds.addAll(addedReplacementMemberIds);
                           _acceptGroupWithSelectedMembers(
                             workerId: workerId,
                             groupApplicationId: groupApplicationId,
-                            memberIdsToAccept: selectedMemberIds.toList(),
+                            memberIdsToAccept: finalMemberIds.toList(),
                           );
-                        },
-                  child: const Text('Accept With Selected Members'),
+                        }
+                      : null,
+                  child: Text(
+                    numRemoved > 0
+                        ? 'Accept With $numRemoved Replacements'
+                        : 'Accept With Selected Members',
+                  ),
                 ),
               ],
             );

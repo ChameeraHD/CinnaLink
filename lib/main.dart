@@ -1,8 +1,8 @@
 import 'package:cinnalink/l10n/app_localizations.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_localizations/flutter_localizations.dart';
 import 'backend/auth.dart';
+import 'backend/job_repository.dart';
 import 'firebase_options.dart';
 import 'frontend/landowner_dashboard.dart';
 import 'frontend/login_page.dart';
@@ -12,6 +12,8 @@ import 'frontend/worker_dashboard.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  // Auto-decline expired applications on app startup
+  await JobRepository.autoDeclineExpiredApplications();
   runApp(const MyApp());
 }
 

@@ -369,7 +369,7 @@ class GroupConflictResult {
 class JobRepository {
   JobRepository._();
 
-  static const Duration _approvalDecisionWindow = Duration(hours: 24);
+  static const Duration _approvalDecisionWindow = Duration(hours: 72);
 
   static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
@@ -406,6 +406,66 @@ class JobRepository {
     return decisionDeadline.isBefore(DateTime.now());
   }
 
+  /// Auto-declines individual applications that have expired (72 hours passed without worker acceptance)
+  static Future<void> _autoDeclineExpiredIndividualApplications() async {
+    try {
+      final expiredApps = await _applicationsCollection
+          .where('status', isEqualTo: 'approved')
+          .get();
+
+      final batch = _firestore.batch();
+      final now = DateTime.now();
+
+      for (final doc in expiredApps.docs) {
+        final data = doc.data();
+        final deadline = (data['decisionDeadline'] as Timestamp?)?.toDate();
+
+        if (deadline != null && deadline.isBefore(now)) {
+          batch.update(doc.reference, {
+            'status': 'expired',
+            'updatedAt': FieldValue.serverTimestamp(),
+          });
+        }
+      }
+
+      if (expiredApps.docs.isNotEmpty) {
+        await batch.commit();
+      }
+    } catch (e) {
+      print('Error auto-declining expired individual applications: $e');
+    }
+  }
+
+  /// Auto-declines group applications that have expired (72 hours passed without coordinator acceptance)
+  static Future<void> _autoDeclineExpiredGroupApplications() async {
+    try {
+      final expiredApps = await _groupApplicationsCollection
+          .where('status', isEqualTo: 'approved')
+          .get();
+
+      final batch = _firestore.batch();
+      final now = DateTime.now();
+
+      for (final doc in expiredApps.docs) {
+        final data = doc.data();
+        final deadline = (data['decisionDeadline'] as Timestamp?)?.toDate();
+
+        if (deadline != null && deadline.isBefore(now)) {
+          batch.update(doc.reference, {
+            'status': 'expired',
+            'updatedAt': FieldValue.serverTimestamp(),
+          });
+        }
+      }
+
+      if (expiredApps.docs.isNotEmpty) {
+        await batch.commit();
+      }
+    } catch (e) {
+      print('Error auto-declining expired group applications: $e');
+    }
+  }
+
   static String _scheduleDateKey(DateTime date) {
     final month = date.month.toString().padLeft(2, '0');
     final day = date.day.toString().padLeft(2, '0');
@@ -424,6 +484,19 @@ class JobRepository {
     required DateTime secondEnd,
   }) {
     return !firstStart.isAfter(secondEnd) && !firstEnd.isBefore(secondStart);
+  }
+
+  /// Check if a worker has schedule conflicts in the given time period
+  static Future<bool> hasScheduleConflict({
+    required String workerId,
+    required DateTime startDate,
+    required int estimatedDays,
+  }) async {
+    return await _hasScheduleRangeConflict(
+      workerId: workerId,
+      startDate: startDate,
+      estimatedDays: estimatedDays,
+    );
   }
 
   static Future<bool> _hasScheduleRangeConflict({
@@ -684,6 +757,9 @@ class JobRepository {
   static Stream<List<WorkerApplicationRecord>> streamApplicationsForWorker(
     String workerId,
   ) {
+    // Auto-decline expired applications whenever stream is accessed
+    _autoDeclineExpiredIndividualApplications();
+
     return _applicationsCollection
         .where('workerId', isEqualTo: workerId)
         .snapshots()
@@ -2229,6 +2305,9 @@ class JobRepository {
 
   static Stream<List<GroupJobApplicationRecord>>
   streamGroupApplicationsForWorker(String workerId) {
+    // Auto-decline expired group applications whenever stream is accessed
+    _autoDeclineExpiredGroupApplications();
+
     return _groupApplicationsCollection
         .where('memberIds', arrayContains: workerId)
         .snapshots()
@@ -2248,6 +2327,9 @@ class JobRepository {
   static Stream<List<GroupJobApplicationRecord>> streamGroupApplicationsForJob(
     String jobId,
   ) {
+    // Auto-decline expired group applications whenever stream is accessed
+    _autoDeclineExpiredGroupApplications();
+
     return _groupApplicationsCollection
         .where('jobId', isEqualTo: jobId)
         .snapshots()
@@ -3151,5 +3233,14 @@ class JobRepository {
     }
 
     await batch.commit();
+  }
+
+  /// Public method to manually trigger auto-decline of expired applications.
+  /// Call this periodically or during app startup to ensure expired applications are declined.
+  static Future<void> autoDeclineExpiredApplications() async {
+    await Future.wait([
+      _autoDeclineExpiredIndividualApplications(),
+      _autoDeclineExpiredGroupApplications(),
+    ]);
   }
 }
