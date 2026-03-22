@@ -15,6 +15,7 @@ class JobRecord {
     required this.landownerId,
     required this.landownerName,
     required this.applicantCount,
+    required this.groupApplicantCount,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -32,6 +33,7 @@ class JobRecord {
   final String landownerId;
   final String landownerName;
   final int applicantCount;
+  final int groupApplicantCount;
   final DateTime? createdAt;
   final DateTime? updatedAt;
 
@@ -53,6 +55,7 @@ class JobRecord {
       landownerId: (data['landownerId'] as String?) ?? '',
       landownerName: (data['landownerName'] as String?) ?? 'Unknown landowner',
       applicantCount: ((data['applicantCount'] as num?) ?? 0).toInt(),
+      groupApplicantCount: ((data['groupApplicantCount'] as num?) ?? 0).toInt(),
       createdAt: (data['createdAt'] as Timestamp?)?.toDate(),
       updatedAt: (data['updatedAt'] as Timestamp?)?.toDate(),
     );
@@ -322,7 +325,9 @@ class GroupJobApplicationRecord {
       coordinatorName: (data['coordinatorName'] as String?) ?? 'Coordinator',
       landownerId: (data['landownerId'] as String?) ?? '',
       landownerName: (data['landownerName'] as String?) ?? 'Unknown landowner',
-      memberIds: rawMemberIds.map((id) => id.toString()).toList(growable: false),
+      memberIds: rawMemberIds
+          .map((id) => id.toString())
+          .toList(growable: false),
       memberNames: memberNames.isNotEmpty ? memberNames : fallbackNames,
       status: (data['status'] as String?) ?? 'submitted',
       createdAt: (data['createdAt'] as Timestamp?)?.toDate(),
@@ -411,9 +416,12 @@ class JobRepository {
 
       final existingStartDate =
           (data['startDate'] as Timestamp?)?.toDate() ?? startDate;
-      final existingEstimatedDays = ((data['estimatedDays'] as num?) ?? 1).toInt();
-      final existingEndDate =
-          _inclusiveEndDate(existingStartDate, existingEstimatedDays);
+      final existingEstimatedDays = ((data['estimatedDays'] as num?) ?? 1)
+          .toInt();
+      final existingEndDate = _inclusiveEndDate(
+        existingStartDate,
+        existingEstimatedDays,
+      );
 
       final overlaps = _rangesOverlap(
         firstStart: startDate,
@@ -472,6 +480,7 @@ class JobRepository {
       'startDate': Timestamp.fromDate(startDate),
       'status': 'open',
       'applicantCount': 0,
+      'groupApplicantCount': 0,
       'totalQuillCount': 0,
       'createdAt': now,
       'updatedAt': now,
@@ -497,16 +506,18 @@ class JobRepository {
     return _taskProgressCollection
         .where('applicationId', isEqualTo: applicationId)
         .snapshots()
-        .map(
-          (snapshot) {
-            final records = snapshot.docs
-                .map(TaskProgressRecord.fromSnapshot)
-                .toList(growable: false);
-            // Sort by createdAt descending in code (avoids needing composite Firestore index)
-            records.sort((a, b) => (b.createdAt ?? DateTime.now()).compareTo(a.createdAt ?? DateTime.now()));
-            return records;
-          },
-        );
+        .map((snapshot) {
+          final records = snapshot.docs
+              .map(TaskProgressRecord.fromSnapshot)
+              .toList(growable: false);
+          // Sort by createdAt descending in code (avoids needing composite Firestore index)
+          records.sort(
+            (a, b) => (b.createdAt ?? DateTime.now()).compareTo(
+              a.createdAt ?? DateTime.now(),
+            ),
+          );
+          return records;
+        });
   }
 
   static Stream<List<TaskProgressRecord>> streamProgressForGroupApplication(
@@ -515,16 +526,17 @@ class JobRepository {
     return _taskProgressCollection
         .where('groupApplicationId', isEqualTo: groupApplicationId)
         .snapshots()
-        .map(
-          (snapshot) {
-            final records = snapshot.docs
-                .map(TaskProgressRecord.fromSnapshot)
-                .toList(growable: false);
-            records.sort((a, b) =>
-                (b.createdAt ?? DateTime.now()).compareTo(a.createdAt ?? DateTime.now()));
-            return records;
-          },
-        );
+        .map((snapshot) {
+          final records = snapshot.docs
+              .map(TaskProgressRecord.fromSnapshot)
+              .toList(growable: false);
+          records.sort(
+            (a, b) => (b.createdAt ?? DateTime.now()).compareTo(
+              a.createdAt ?? DateTime.now(),
+            ),
+          );
+          return records;
+        });
   }
 
   static Stream<int> streamTotalQuillCountForGroupApplication(
@@ -546,16 +558,18 @@ class JobRepository {
     return _taskProgressCollection
         .where('jobId', isEqualTo: jobId)
         .snapshots()
-        .map(
-          (snapshot) {
-            final records = snapshot.docs
-                .map(TaskProgressRecord.fromSnapshot)
-                .toList(growable: false);
-            // Sort by createdAt descending in code (avoids needing composite Firestore index)
-            records.sort((a, b) => (b.createdAt ?? DateTime.now()).compareTo(a.createdAt ?? DateTime.now()));
-            return records;
-          },
-        );
+        .map((snapshot) {
+          final records = snapshot.docs
+              .map(TaskProgressRecord.fromSnapshot)
+              .toList(growable: false);
+          // Sort by createdAt descending in code (avoids needing composite Firestore index)
+          records.sort(
+            (a, b) => (b.createdAt ?? DateTime.now()).compareTo(
+              a.createdAt ?? DateTime.now(),
+            ),
+          );
+          return records;
+        });
   }
 
   static Stream<List<JobRecord>> streamOpenJobs() {
@@ -619,7 +633,9 @@ class JobRepository {
         .limit(1)
         .get();
     if (applicationSnapshot.docs.isNotEmpty) {
-      throw StateError('Cannot delete this job because applications already exist.');
+      throw StateError(
+        'Cannot delete this job because applications already exist.',
+      );
     }
 
     final groupApplicationSnapshot = await _groupApplicationsCollection
@@ -627,7 +643,9 @@ class JobRepository {
         .limit(1)
         .get();
     if (groupApplicationSnapshot.docs.isNotEmpty) {
-      throw StateError('Cannot delete this job because group applications already exist.');
+      throw StateError(
+        'Cannot delete this job because group applications already exist.',
+      );
     }
 
     await jobRef.delete();
@@ -681,32 +699,30 @@ class JobRepository {
     return _groupApplicationsCollection
         .where('memberIds', arrayContains: workerId)
         .snapshots()
-        .map(
-          (snapshot) {
-            final labels = <String, String>{};
-            const activeStatuses = <String>{
-              'submitted',
-              'approved',
-              'accepted',
-              'in_progress',
-            };
-            for (final doc in snapshot.docs) {
-              final data = doc.data();
-              final status = (data['status'] as String?) ?? '';
-              if (!activeStatuses.contains(status)) {
-                continue;
-              }
-              final jobId = (data['jobId'] as String?) ?? '';
-              final groupName =
-                  ((data['groupName'] as String?) ?? 'Group').trim();
-
-              if (jobId.isNotEmpty) {
-                labels[jobId] = groupName.isEmpty ? 'Group' : groupName;
-              }
+        .map((snapshot) {
+          final labels = <String, String>{};
+          const activeStatuses = <String>{
+            'submitted',
+            'approved',
+            'accepted',
+            'in_progress',
+          };
+          for (final doc in snapshot.docs) {
+            final data = doc.data();
+            final status = (data['status'] as String?) ?? '';
+            if (!activeStatuses.contains(status)) {
+              continue;
             }
-            return labels;
-          },
-        );
+            final jobId = (data['jobId'] as String?) ?? '';
+            final groupName = ((data['groupName'] as String?) ?? 'Group')
+                .trim();
+
+            if (jobId.isNotEmpty) {
+              labels[jobId] = groupName.isEmpty ? 'Group' : groupName;
+            }
+          }
+          return labels;
+        });
   }
 
   static Stream<List<WorkerApplicationRecord>> streamApplicationsForJob(
@@ -893,8 +909,8 @@ class JobRepository {
 
     final selectedStartDate =
         (selectedData['startDate'] as Timestamp?)?.toDate() ?? DateTime.now();
-    final selectedEstimatedDays =
-        ((selectedData['estimatedDays'] as num?) ?? 1).toInt();
+    final selectedEstimatedDays = ((selectedData['estimatedDays'] as num?) ?? 1)
+        .toInt();
     final hasConflict = await _hasScheduleRangeConflict(
       workerId: workerId,
       startDate: selectedStartDate,
@@ -917,23 +933,26 @@ class JobRepository {
     final batch = _firestore.batch();
     final now = FieldValue.serverTimestamp();
 
-    final selectedEndDate =
-        _inclusiveEndDate(selectedStartDate, selectedEstimatedDays);
+    final selectedEndDate = _inclusiveEndDate(
+      selectedStartDate,
+      selectedEstimatedDays,
+    );
 
     for (final doc in approvedOffersQuery.docs) {
       if (doc.id == applicationId) {
-        batch.update(doc.reference, {
-          'status': 'accepted',
-          'updatedAt': now,
-        });
+        batch.update(doc.reference, {'status': 'accepted', 'updatedAt': now});
         continue;
       }
 
       final offerData = doc.data();
       final offerStartDate =
           (offerData['startDate'] as Timestamp?)?.toDate() ?? selectedStartDate;
-      final offerEstimatedDays = ((offerData['estimatedDays'] as num?) ?? 1).toInt();
-      final offerEndDate = _inclusiveEndDate(offerStartDate, offerEstimatedDays);
+      final offerEstimatedDays = ((offerData['estimatedDays'] as num?) ?? 1)
+          .toInt();
+      final offerEndDate = _inclusiveEndDate(
+        offerStartDate,
+        offerEstimatedDays,
+      );
 
       final overlaps = _rangesOverlap(
         firstStart: selectedStartDate,
@@ -962,6 +981,12 @@ class JobRepository {
       'scheduleDateKey': scheduleDateKey,
       'status': 'accepted',
       'createdAt': now,
+      'updatedAt': now,
+    });
+
+    // Update the job status to 'accepted' when an application is accepted
+    batch.update(_jobsCollection.doc(selectedData['jobId']), {
+      'status': 'accepted',
       'updatedAt': now,
     });
 
@@ -1098,9 +1123,10 @@ class JobRepository {
       throw StateError('Group application not found.');
     }
 
-    final memberIds = ((groupAppData['memberIds'] as List<dynamic>?) ?? const <dynamic>[])
-        .map((id) => id.toString())
-        .toList(growable: false);
+    final memberIds =
+        ((groupAppData['memberIds'] as List<dynamic>?) ?? const <dynamic>[])
+            .map((id) => id.toString())
+            .toList(growable: false);
     if (!memberIds.contains(workerId)) {
       throw StateError('Only group members can submit group progress.');
     }
@@ -1117,8 +1143,12 @@ class JobRepository {
       throw StateError('Job details are missing for this group application.');
     }
 
-    final workerSnapshot = await _firestore.collection('users').doc(workerId).get();
-    final workerName = ((workerSnapshot.data()?['name'] as String?) ?? 'Worker').trim();
+    final workerSnapshot = await _firestore
+        .collection('users')
+        .doc(workerId)
+        .get();
+    final workerName = ((workerSnapshot.data()?['name'] as String?) ?? 'Worker')
+        .trim();
 
     await _firestore.runTransaction((transaction) async {
       final now = FieldValue.serverTimestamp();
@@ -1238,7 +1268,9 @@ class JobRepository {
 
     final coordinatorId = (appData['coordinatorId'] as String?)?.trim() ?? '';
     if (coordinatorId != workerId.trim()) {
-      throw StateError('Only the group coordinator can mark this job as completed.');
+      throw StateError(
+        'Only the group coordinator can mark this job as completed.',
+      );
     }
 
     final currentStatus = (appData['status'] as String?) ?? '';
@@ -1254,16 +1286,10 @@ class JobRepository {
         .get();
 
     final batch = _firestore.batch();
-    batch.update(appRef, {
-      'status': 'completed',
-      'updatedAt': now,
-    });
+    batch.update(appRef, {'status': 'completed', 'updatedAt': now});
 
     for (final doc in scheduleSnapshot.docs) {
-      batch.update(doc.reference, {
-        'status': 'completed',
-        'updatedAt': now,
-      });
+      batch.update(doc.reference, {'status': 'completed', 'updatedAt': now});
     }
 
     await batch.commit();
@@ -1356,17 +1382,22 @@ class JobRepository {
     final users = _firestore.collection('users');
     final fromUserSnapshot = await users.doc(fromId).get();
     final toUserSnapshot = await users.doc(toId).get();
-    final fromRole = (fromUserSnapshot.data()?['role'] as String?)?.trim() ?? '';
+    final fromRole =
+        (fromUserSnapshot.data()?['role'] as String?)?.trim() ?? '';
     final toRole = (toUserSnapshot.data()?['role'] as String?)?.trim() ?? '';
 
     final validFromRole = fromRole == 'worker' || fromRole == 'landowner';
     final validToRole = toRole == 'worker' || toRole == 'landowner';
     if (!validFromRole || !validToRole) {
-      throw StateError('Only workers and landowners can participate in ratings.');
+      throw StateError(
+        'Only workers and landowners can participate in ratings.',
+      );
     }
 
     if (fromRole == toRole) {
-      throw StateError('Workers cannot rate workers and landowners cannot rate landowners.');
+      throw StateError(
+        'Workers cannot rate workers and landowners cannot rate landowners.',
+      );
     }
 
     if (fromRole == 'worker') {
@@ -1379,7 +1410,9 @@ class JobRepository {
           .get();
 
       if (existingWorkerRatingSnapshot.docs.isNotEmpty) {
-        throw StateError('You have already submitted your rating for this job.');
+        throw StateError(
+          'You have already submitted your rating for this job.',
+        );
       }
     } else {
       // Landowners can rate multiple workers on the same job,
@@ -1468,7 +1501,9 @@ class JobRepository {
     required String feedback,
   }) async {
     final fromId = landownerId.trim();
-    final fromName = landownerName.trim().isEmpty ? 'Landowner' : landownerName.trim();
+    final fromName = landownerName.trim().isEmpty
+        ? 'Landowner'
+        : landownerName.trim();
     final appId = groupApplicationId.trim();
 
     if (fromId.isEmpty) {
@@ -1486,7 +1521,9 @@ class JobRepository {
 
     final appLandownerId = (appData['landownerId'] as String?)?.trim() ?? '';
     if (appLandownerId != fromId) {
-      throw StateError('You can only rate workers for your own group applications.');
+      throw StateError(
+        'You can only rate workers for your own group applications.',
+      );
     }
 
     final jobId = (appData['jobId'] as String?)?.trim() ?? '';
@@ -1494,10 +1531,11 @@ class JobRepository {
       throw StateError('Job details are missing for this group application.');
     }
 
-    final memberIds = ((appData['memberIds'] as List<dynamic>?) ?? const <dynamic>[])
-        .map((id) => id.toString().trim())
-        .where((id) => id.isNotEmpty)
-        .toList(growable: false);
+    final memberIds =
+        ((appData['memberIds'] as List<dynamic>?) ?? const <dynamic>[])
+            .map((id) => id.toString().trim())
+            .where((id) => id.isNotEmpty)
+            .toList(growable: false);
     if (memberIds.isEmpty) {
       throw StateError('No members found in this group application.');
     }
@@ -1524,11 +1562,15 @@ class JobRepository {
           continue;
         }
 
-        final memberSnapshot = await _firestore.collection('users').doc(memberId).get();
+        final memberSnapshot = await _firestore
+            .collection('users')
+            .doc(memberId)
+            .get();
         final memberName =
-            (memberSnapshot.data()?['name'] as String?)?.trim().isNotEmpty == true
-                ? (memberSnapshot.data()?['name'] as String)
-                : 'Worker';
+            (memberSnapshot.data()?['name'] as String?)?.trim().isNotEmpty ==
+                true
+            ? (memberSnapshot.data()?['name'] as String)
+            : 'Worker';
 
         await submitRating(
           fromUserId: fromId,
@@ -1546,14 +1588,12 @@ class JobRepository {
     }
 
     if (submitted == 0 && failed > 0) {
-      throw StateError('Could not submit ratings for group members. Please try again.');
+      throw StateError(
+        'Could not submit ratings for group members. Please try again.',
+      );
     }
 
-    return {
-      'submitted': submitted,
-      'skipped': skipped,
-      'failed': failed,
-    };
+    return {'submitted': submitted, 'skipped': skipped, 'failed': failed};
   }
 
   static Stream<List<RatingRecord>> streamRatingsForUser(
@@ -1568,18 +1608,20 @@ class JobRepository {
     return _ratingsCollection
         .where('toUserId', isEqualTo: trimmedId)
         .snapshots()
-        .map(
-          (snapshot) {
-            final records = snapshot.docs
-                .map(RatingRecord.fromSnapshot)
-                .where((record) => record.fromUserId.isNotEmpty)
-                .toList(growable: false);
-            // Sort by createdAt descending in code (avoids needing composite Firestore index)
-            records.sort((a, b) => (b.createdAt ?? DateTime.now()).compareTo(a.createdAt ?? DateTime.now()));
-            // Apply limit in code
-            return records.take(limit).toList();
-          },
-        );
+        .map((snapshot) {
+          final records = snapshot.docs
+              .map(RatingRecord.fromSnapshot)
+              .where((record) => record.fromUserId.isNotEmpty)
+              .toList(growable: false);
+          // Sort by createdAt descending in code (avoids needing composite Firestore index)
+          records.sort(
+            (a, b) => (b.createdAt ?? DateTime.now()).compareTo(
+              a.createdAt ?? DateTime.now(),
+            ),
+          );
+          // Apply limit in code
+          return records.take(limit).toList();
+        });
   }
 
   static Future<Map<String, dynamic>> getWorkerMetrics(String workerId) async {
@@ -1675,7 +1717,7 @@ class JobRepository {
     final groupNameKey = _normalizeGroupName(trimmedName);
     final existingGroupByKey = await _workerGroupsCollection
         .where('groupNameKey', isEqualTo: groupNameKey)
-      .where('status', isEqualTo: 'active')
+        .where('status', isEqualTo: 'active')
         .limit(1)
         .get();
     if (existingGroupByKey.docs.isNotEmpty) {
@@ -1684,7 +1726,7 @@ class JobRepository {
 
     final existingGroupByName = await _workerGroupsCollection
         .where('groupName', isEqualTo: trimmedName)
-      .where('status', isEqualTo: 'active')
+        .where('status', isEqualTo: 'active')
         .limit(1)
         .get();
     if (existingGroupByName.docs.isNotEmpty) {
@@ -2154,11 +2196,12 @@ class JobRepository {
       final groupSnapshot = await _workerGroupsCollection.doc(groupId).get();
       final groupData = groupSnapshot.data();
       if (groupData != null) {
-        final members = ((groupData['members'] as List<dynamic>?) ?? const <dynamic>[])
-            .whereType<Map>()
-            .map((member) => member['name']?.toString().trim() ?? '')
-            .where((name) => name.isNotEmpty)
-            .toList(growable: false);
+        final members =
+            ((groupData['members'] as List<dynamic>?) ?? const <dynamic>[])
+                .whereType<Map>()
+                .map((member) => member['name']?.toString().trim() ?? '')
+                .where((name) => name.isNotEmpty)
+                .toList(growable: false);
         if (members.isNotEmpty) {
           return members;
         }
@@ -2171,7 +2214,10 @@ class JobRepository {
 
     final names = <String>[];
     for (final memberId in fallbackMemberIds) {
-      final userSnapshot = await _firestore.collection('users').doc(memberId).get();
+      final userSnapshot = await _firestore
+          .collection('users')
+          .doc(memberId)
+          .get();
       final userData = userSnapshot.data();
       final name = userData?['name']?.toString().trim() ?? '';
       if (name.isNotEmpty) {
@@ -2203,11 +2249,12 @@ class JobRepository {
         ((groupData['memberIds'] as List<dynamic>?) ?? const <dynamic>[])
             .map((id) => id.toString())
             .toList(growable: false);
-    final memberNames = ((groupData['members'] as List<dynamic>?) ?? const <dynamic>[])
-      .whereType<Map>()
-      .map((member) => member['name']?.toString().trim() ?? '')
-      .where((name) => name.isNotEmpty)
-      .toList(growable: false);
+    final memberNames =
+        ((groupData['members'] as List<dynamic>?) ?? const <dynamic>[])
+            .whereType<Map>()
+            .map((member) => member['name']?.toString().trim() ?? '')
+            .where((name) => name.isNotEmpty)
+            .toList(growable: false);
 
     if (memberIds.isEmpty) {
       throw StateError('This group has no members.');
@@ -2231,7 +2278,12 @@ class JobRepository {
         .where('groupId', isEqualTo: groupId)
         .get();
 
-    const activeStatuses = <String>{'submitted', 'approved', 'accepted', 'in_progress'};
+    const activeStatuses = <String>{
+      'submitted',
+      'approved',
+      'accepted',
+      'in_progress',
+    };
     final hasActiveDuplicate = duplicateQuery.docs.any((doc) {
       final status = (doc.data()['status'] as String?) ?? '';
       return activeStatuses.contains(status);
@@ -2270,7 +2322,7 @@ class JobRepository {
     });
 
     await jobRef.update({
-      'applicantCount': FieldValue.increment(1),
+      'groupApplicantCount': FieldValue.increment(1),
       'updatedAt': now,
     });
   }
@@ -2292,7 +2344,9 @@ class JobRepository {
       updatePayload['decisionDeadline'] = null;
     }
 
-    await _groupApplicationsCollection.doc(groupApplicationId).update(updatePayload);
+    await _groupApplicationsCollection
+        .doc(groupApplicationId)
+        .update(updatePayload);
   }
 
   static Future<void> acceptGroupApplicationDecision({
@@ -2375,8 +2429,8 @@ class JobRepository {
       throw StateError('Only approved group applications can be accepted.');
     }
 
-    final decisionDeadline =
-        (appData['decisionDeadline'] as Timestamp?)?.toDate();
+    final decisionDeadline = (appData['decisionDeadline'] as Timestamp?)
+        ?.toDate();
     if (_isExpiredDecision(decisionDeadline)) {
       await appRef.update({
         'status': 'expired',
@@ -2442,8 +2496,12 @@ class JobRepository {
         final data = doc.data();
         final offerStartDate =
             (data['startDate'] as Timestamp?)?.toDate() ?? startDate;
-        final offerEstimatedDays = ((data['estimatedDays'] as num?) ?? 1).toInt();
-        final offerEndDate = _inclusiveEndDate(offerStartDate, offerEstimatedDays);
+        final offerEstimatedDays = ((data['estimatedDays'] as num?) ?? 1)
+            .toInt();
+        final offerEndDate = _inclusiveEndDate(
+          offerStartDate,
+          offerEstimatedDays,
+        );
 
         final overlaps = _rangesOverlap(
           firstStart: startDate,
@@ -2470,8 +2528,12 @@ class JobRepository {
         final data = doc.data();
         final offerStartDate =
             (data['startDate'] as Timestamp?)?.toDate() ?? startDate;
-        final offerEstimatedDays = ((data['estimatedDays'] as num?) ?? 1).toInt();
-        final offerEndDate = _inclusiveEndDate(offerStartDate, offerEstimatedDays);
+        final offerEstimatedDays = ((data['estimatedDays'] as num?) ?? 1)
+            .toInt();
+        final offerEndDate = _inclusiveEndDate(
+          offerStartDate,
+          offerEstimatedDays,
+        );
 
         final overlaps = _rangesOverlap(
           firstStart: startDate,
@@ -2487,6 +2549,12 @@ class JobRepository {
     }
 
     batch.update(appRef, {'status': 'accepted', 'updatedAt': now});
+
+    // Update the job status to 'accepted' when a group application is accepted
+    batch.update(_jobsCollection.doc(jobId), {
+      'status': 'accepted',
+      'updatedAt': now,
+    });
 
     for (final applicationId in overlappingApprovedIndividualIds) {
       batch.update(_applicationsCollection.doc(applicationId), {
@@ -2524,5 +2592,60 @@ class JobRepository {
     }
 
     await batch.commit();
+  }
+
+  /// Migrates existing jobs: Updates 'open' jobs that have accepted applications/schedules to 'accepted' status.
+  /// This is a one-time fix for jobs that were accepted before the recent code updates.
+  static Future<void> migrateAcceptedJobsStatus() async {
+    try {
+      // Find all jobs with 'open' status
+      final openJobsQuery = await _jobsCollection
+          .where('status', isEqualTo: 'open')
+          .get();
+
+      if (openJobsQuery.docs.isEmpty) {
+        return;
+      }
+
+      final batch = _firestore.batch();
+      final now = FieldValue.serverTimestamp();
+      int updateCount = 0;
+
+      // For each open job, check if it has accepted applications or schedules
+      for (final jobDoc in openJobsQuery.docs) {
+        final jobId = jobDoc.id;
+
+        // Check for accepted individual applications
+        final acceptedAppQuery = await _applicationsCollection
+            .where('jobId', isEqualTo: jobId)
+            .where('status', isEqualTo: 'accepted')
+            .limit(1)
+            .get();
+
+        // Check for accepted group applications
+        final acceptedGroupQuery = await _groupApplicationsCollection
+            .where('jobId', isEqualTo: jobId)
+            .where('status', isEqualTo: 'accepted')
+            .limit(1)
+            .get();
+
+        // If there are accepted applications for this job, update its status
+        if (acceptedAppQuery.docs.isNotEmpty ||
+            acceptedGroupQuery.docs.isNotEmpty) {
+          batch.update(jobDoc.reference, {
+            'status': 'accepted',
+            'updatedAt': now,
+          });
+          updateCount++;
+        }
+      }
+
+      if (updateCount > 0) {
+        await batch.commit();
+      }
+    } catch (error) {
+      print('Migration error: $error');
+      rethrow;
+    }
   }
 }

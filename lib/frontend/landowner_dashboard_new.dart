@@ -113,6 +113,8 @@ class _WorkerApplicationsPageState extends State<WorkerApplicationsPage> {
   final WorkerSchedulingController _controller =
       const WorkerSchedulingController();
   String? _actionApplicationId;
+  final Map<String, Future<List<String>>> _groupMemberNamesFutures =
+      <String, Future<List<String>>>{};
   final Map<String, bool> _expandedJobs = <String, bool>{};
 
   @override
@@ -261,6 +263,65 @@ class _WorkerApplicationsPageState extends State<WorkerApplicationsPage> {
     }
   }
 
+  Future<List<String>> _resolveGroupMemberNames(
+    GroupJobApplicationRecord application,
+  ) {
+    if (application.memberNames.isNotEmpty) {
+      return Future<List<String>>.value(application.memberNames);
+    }
+
+    return _groupMemberNamesFutures.putIfAbsent(
+      application.id,
+      () => JobRepository.fetchGroupMemberNames(
+        groupId: application.groupId,
+        fallbackMemberIds: application.memberIds,
+      ),
+    );
+  }
+
+  Widget _buildWorkerRating(String workerId) {
+    return FutureBuilder<Map<String, dynamic>>(
+      future: JobRepository.getWorkerMetrics(workerId),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const SizedBox(height: 0);
+        }
+
+        if (snapshot.hasError || !snapshot.hasData) {
+          return const SizedBox(height: 0);
+        }
+
+        final metrics = snapshot.data ?? {};
+        final avgRating = (metrics['averageRating'] as num?)?.toDouble() ?? 0;
+        final totalRatings = (metrics['totalRatings'] as num?)?.toInt() ?? 0;
+
+        if (avgRating == 0) {
+          return const SizedBox(height: 0);
+        }
+
+        return Row(
+          children: [
+            ...List.generate(
+              5,
+              (index) => Icon(
+                Icons.star,
+                size: 14,
+                color: index < avgRating.round()
+                    ? Colors.amber
+                    : Colors.grey[300],
+              ),
+            ),
+            const SizedBox(width: 4),
+            Text(
+              '${avgRating.toStringAsFixed(1)} ($totalRatings)',
+              style: const TextStyle(fontSize: 11, color: Colors.grey),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   Widget _buildApplicationList(JobRecord job) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final tileColor = isDark ? const Color(0xFF14201D) : Colors.grey.shade50;
@@ -289,22 +350,18 @@ class _WorkerApplicationsPageState extends State<WorkerApplicationsPage> {
         }
 
         final applications = snapshot.data ?? const <WorkerApplicationRecord>[];
-        final pendingApplications = applications
-            .where((app) => app.status == 'submitted')
-            .toList();
-
-        if (pendingApplications.isEmpty) {
+        if (applications.isEmpty) {
           return const Padding(
             padding: EdgeInsets.only(top: 12),
             child: Text(
-              'No pending applications.',
+              'No applications.',
               style: TextStyle(color: Colors.grey),
             ),
           );
         }
 
         return Column(
-          children: pendingApplications
+          children: applications
               .map((application) {
                 final isBusy = _actionApplicationId == application.id;
                 final statusColor = _statusColor(application.status);
@@ -351,6 +408,8 @@ class _WorkerApplicationsPageState extends State<WorkerApplicationsPage> {
                                     application.workerPhone,
                                     style: TextStyle(color: Colors.grey[600]),
                                   ),
+                                const SizedBox(height: 4),
+                                _buildWorkerRating(application.workerId),
                               ],
                             ),
                           ),
@@ -384,49 +443,51 @@ class _WorkerApplicationsPageState extends State<WorkerApplicationsPage> {
                           ),
                         ],
                       ),
-                      const SizedBox(height: 12),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: OutlinedButton(
-                              onPressed: isBusy
-                                  ? null
-                                  : () => _updateApplicationStatus(
-                                      applicationId: application.id,
-                                      status: 'rejected',
-                                    ),
-                              style: OutlinedButton.styleFrom(
-                                foregroundColor: Colors.red,
-                              ),
-                              child: const Text('Reject'),
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: ElevatedButton(
-                              onPressed: isBusy
-                                  ? null
-                                  : () => _updateApplicationStatus(
-                                      applicationId: application.id,
-                                      status: 'approved',
-                                    ),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.green,
-                              ),
-                              child: isBusy
-                                  ? const SizedBox(
-                                      height: 18,
-                                      width: 18,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2,
-                                        color: Colors.white,
+                      if (application.status == 'submitted') ...[
+                        const SizedBox(height: 12),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: OutlinedButton(
+                                onPressed: isBusy
+                                    ? null
+                                    : () => _updateApplicationStatus(
+                                        applicationId: application.id,
+                                        status: 'rejected',
                                       ),
-                                    )
-                                  : const Text('Approve'),
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: Colors.red,
+                                ),
+                                child: const Text('Reject'),
+                              ),
                             ),
-                          ),
-                        ],
-                      ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: ElevatedButton(
+                                onPressed: isBusy
+                                    ? null
+                                    : () => _updateApplicationStatus(
+                                        applicationId: application.id,
+                                        status: 'approved',
+                                      ),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.green,
+                                ),
+                                child: isBusy
+                                    ? const SizedBox(
+                                        height: 18,
+                                        width: 18,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                          color: Colors.white,
+                                        ),
+                                      )
+                                    : const Text('Approve'),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
                     ],
                   ),
                 );
@@ -469,22 +530,18 @@ class _WorkerApplicationsPageState extends State<WorkerApplicationsPage> {
 
         final applications =
             snapshot.data ?? const <GroupJobApplicationRecord>[];
-        final pendingGroupApplications = applications
-            .where((app) => app.status == 'submitted')
-            .toList();
-
-        if (pendingGroupApplications.isEmpty) {
+        if (applications.isEmpty) {
           return const Padding(
             padding: EdgeInsets.only(top: 8),
             child: Text(
-              'No pending group applications.',
+              'No group applications yet.',
               style: TextStyle(color: Colors.grey),
             ),
           );
         }
 
         return Column(
-          children: pendingGroupApplications
+          children: applications
               .map((application) {
                 final isBusy = _actionApplicationId == application.id;
                 final statusColor = _statusColor(application.status);
@@ -541,53 +598,64 @@ class _WorkerApplicationsPageState extends State<WorkerApplicationsPage> {
                         'Coordinator: ${application.coordinatorName}',
                         style: const TextStyle(color: Colors.grey),
                       ),
-                      Text(
-                        'Members: ${application.memberIds.length}',
-                        style: const TextStyle(color: Colors.grey),
+                      FutureBuilder<List<String>>(
+                        future: _resolveGroupMemberNames(application),
+                        builder: (context, memberSnapshot) {
+                          final names = memberSnapshot.data ?? const <String>[];
+                          final memberLabel = names.isEmpty
+                              ? 'Members: ${application.memberIds.length}'
+                              : 'Members: ${names.join(', ')}';
+                          return Text(
+                            memberLabel,
+                            style: const TextStyle(color: Colors.grey),
+                          );
+                        },
                       ),
-                      const SizedBox(height: 10),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: OutlinedButton(
-                              onPressed: isBusy
-                                  ? null
-                                  : () => _updateGroupApplicationStatus(
-                                      groupApplicationId: application.id,
-                                      status: 'rejected',
-                                    ),
-                              style: OutlinedButton.styleFrom(
-                                foregroundColor: Colors.red,
-                              ),
-                              child: const Text('Reject'),
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: ElevatedButton(
-                              onPressed: isBusy
-                                  ? null
-                                  : () => _updateGroupApplicationStatus(
-                                      groupApplicationId: application.id,
-                                      status: 'approved',
-                                    ),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.green,
-                              ),
-                              child: isBusy
-                                  ? const SizedBox(
-                                      height: 18,
-                                      width: 18,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2,
-                                        color: Colors.white,
+                      if (application.status == 'submitted') ...[
+                        const SizedBox(height: 10),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: OutlinedButton(
+                                onPressed: isBusy
+                                    ? null
+                                    : () => _updateGroupApplicationStatus(
+                                        groupApplicationId: application.id,
+                                        status: 'rejected',
                                       ),
-                                    )
-                                  : const Text('Approve'),
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: Colors.red,
+                                ),
+                                child: const Text('Reject'),
+                              ),
                             ),
-                          ),
-                        ],
-                      ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: ElevatedButton(
+                                onPressed: isBusy
+                                    ? null
+                                    : () => _updateGroupApplicationStatus(
+                                        groupApplicationId: application.id,
+                                        status: 'approved',
+                                      ),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.green,
+                                ),
+                                child: isBusy
+                                    ? const SizedBox(
+                                        height: 18,
+                                        width: 18,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                          color: Colors.white,
+                                        ),
+                                      )
+                                    : const Text('Approve'),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
                     ],
                   ),
                 );
@@ -606,7 +674,7 @@ class _WorkerApplicationsPageState extends State<WorkerApplicationsPage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Review Applications'),
+        title: const Text('Manage Applications'),
         backgroundColor: Colors.green,
       ),
       body: user == null
@@ -624,17 +692,27 @@ class _WorkerApplicationsPageState extends State<WorkerApplicationsPage> {
 
                 final jobs = snapshot.data ?? const <JobRecord>[];
 
-                if (jobs.isEmpty) {
-                  return const Center(child: Text('No jobs posted yet.'));
+                // Filter jobs with pending applications (submitted status)
+                final jobsWithApplications = jobs
+                    .where(
+                      (job) =>
+                          job.applicantCount > 0 || job.groupApplicantCount > 0,
+                    )
+                    .toList();
+
+                if (jobsWithApplications.isEmpty) {
+                  return const Center(
+                    child: Text('No jobs with pending applications.'),
+                  );
                 }
 
                 return Container(
                   color: bodyColor,
                   child: ListView.builder(
                     padding: const EdgeInsets.all(16),
-                    itemCount: jobs.length,
+                    itemCount: jobsWithApplications.length,
                     itemBuilder: (context, index) {
-                      final job = jobs[index];
+                      final job = jobsWithApplications[index];
                       final isExpanded = _expandedJobs[job.id] ?? false;
 
                       return Card(
@@ -670,10 +748,9 @@ class _WorkerApplicationsPageState extends State<WorkerApplicationsPage> {
                                           ),
                                           const SizedBox(height: 4),
                                           Text(
-                                            'Job ID: ${job.id}',
+                                            'Applicants: ${job.applicantCount} | Groups: ${job.groupApplicantCount}',
                                             style: TextStyle(
                                               color: Colors.grey[600],
-                                              fontSize: 12,
                                             ),
                                           ),
                                         ],
