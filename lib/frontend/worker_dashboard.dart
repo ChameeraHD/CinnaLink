@@ -1566,6 +1566,39 @@ class _ApprovedJobsPageState extends State<ApprovedJobsPage> {
         throw StateError('Group application not found.');
       }
 
+      final jobStartDate =
+          (appData['startDate'] as Timestamp?)?.toDate() ?? DateTime.now();
+      final estimatedDays = ((appData['estimatedDays'] as num?) ?? 1).toInt();
+
+      // IMPORTANT: Check if COORDINATOR has a conflicting job in the same time period
+      final coordinatorHasConflict = await JobRepository.hasScheduleConflict(
+        workerId: workerId,
+        startDate: jobStartDate,
+        estimatedDays: estimatedDays,
+      );
+
+      if (coordinatorHasConflict) {
+        setState(() {
+          _actionApplicationId = null;
+        });
+
+        if (mounted) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text(
+                    'You (the coordinator) cannot accept this group job because you have another accepted job during the same time period. As the coordinator, you must be available for the group job.',
+                  ),
+                  duration: Duration(seconds: 5),
+                ),
+              );
+            }
+          });
+        }
+        return;
+      }
+
       final memberIds =
           ((appData['memberIds'] as List<dynamic>?) ?? const <dynamic>[])
               .map((id) => id.toString())
@@ -1574,11 +1607,8 @@ class _ApprovedJobsPageState extends State<ApprovedJobsPage> {
           ((appData['memberNames'] as List<dynamic>?) ?? const <dynamic>[])
               .map((name) => name.toString())
               .toList();
-      final jobStartDate =
-          (appData['startDate'] as Timestamp?)?.toDate() ?? DateTime.now();
-      final estimatedDays = ((appData['estimatedDays'] as num?) ?? 1).toInt();
 
-      // Check for conflicts
+      // Check for conflicts in group members
       final conflictResult = await JobRepository.getGroupApplicationConflicts(
         memberIds: memberIds,
         memberNames: memberNames,
@@ -1693,10 +1723,14 @@ class _ApprovedJobsPageState extends State<ApprovedJobsPage> {
         }
       } catch (e) {
         // Error fetching available workers - continue without replacements
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Could not load available workers: $e')),
-          );
+        if (mounted) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('Could not load available workers: $e')),
+              );
+            }
+          });
         }
       }
     }
@@ -1746,18 +1780,34 @@ class _ApprovedJobsPageState extends State<ApprovedJobsPage> {
                                 style: const TextStyle(
                                   fontWeight: FontWeight.bold,
                                   color: Colors.red,
+                                  fontSize: 14,
                                 ),
                               ),
                               Padding(
                                 padding: const EdgeInsets.only(
                                   left: 12,
-                                  top: 4,
+                                  top: 6,
                                 ),
-                                child: Text(
-                                  '${conflict.conflictingJobTitle}\n'
-                                  '${conflict.conflictingStartDate.toString().split(' ')[0]} - '
-                                  '${conflict.conflictingEndDate.toString().split(' ')[0]}',
-                                  style: const TextStyle(fontSize: 12),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Conflicting Job: ${conflict.conflictingJobTitle}',
+                                      style: const TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 3),
+                                    Text(
+                                      'Date: ${conflict.conflictingStartDate.toString().split(' ')[0]} - '
+                                      '${conflict.conflictingEndDate.toString().split(' ')[0]}',
+                                      style: const TextStyle(
+                                        fontSize: 11,
+                                        color: Colors.grey,
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
                             ],
