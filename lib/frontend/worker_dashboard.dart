@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:table_calendar/table_calendar.dart';
 import '../backend/auth.dart';
 import '../backend/job_repository.dart';
 import 'profile_reviews_section.dart';
@@ -124,8 +125,9 @@ class _FindJobsPageState extends State<FindJobsPage> {
   }
 
   DateTime _applicationEndDate(WorkerApplicationRecord application) {
-    final inclusiveDays =
-        application.estimatedDays > 0 ? application.estimatedDays - 1 : 0;
+    final inclusiveDays = application.estimatedDays > 0
+        ? application.estimatedDays - 1
+        : 0;
     return application.startDate.add(Duration(days: inclusiveDays));
   }
 
@@ -146,7 +148,8 @@ class _FindJobsPageState extends State<FindJobsPage> {
     final candidateEnd = _jobEndDate(candidate);
 
     for (final application in applications) {
-      if (application.status != 'accepted' && application.status != 'in_progress') {
+      if (application.status != 'accepted' &&
+          application.status != 'in_progress') {
         continue;
       }
 
@@ -203,7 +206,9 @@ class _FindJobsPageState extends State<FindJobsPage> {
               (index) => Icon(
                 Icons.star,
                 size: 16,
-                color: index < avgRating.round() ? Colors.amber : Colors.grey[300],
+                color: index < avgRating.round()
+                    ? Colors.amber
+                    : Colors.grey[300],
               ),
             ),
             const SizedBox(width: 6),
@@ -256,9 +261,9 @@ class _FindJobsPageState extends State<FindJobsPage> {
         return;
       }
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(_readableError(error))),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(_readableError(error))));
     } finally {
       if (mounted) {
         setState(() {
@@ -272,7 +277,9 @@ class _FindJobsPageState extends State<FindJobsPage> {
     final workerId = AuthService.currentUserId;
     if (workerId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please log in again to apply as a group.')),
+        const SnackBar(
+          content: Text('Please log in again to apply as a group.'),
+        ),
       );
       return;
     }
@@ -352,11 +359,16 @@ class _FindJobsPageState extends State<FindJobsPage> {
                             child: ListTile(
                               leading: const Icon(Icons.groups),
                               title: Text(group.groupName),
-                              subtitle: Text('Members: ${group.memberIds.length}'),
+                              subtitle: Text(
+                                'Members: ${group.memberIds.length}',
+                              ),
                               trailing: ElevatedButton(
                                 onPressed: () async {
                                   Navigator.of(sheetContext).pop();
-                                  await _applyForJobAsGroup(job: job, group: group);
+                                  await _applyForJobAsGroup(
+                                    job: job,
+                                    group: group,
+                                  );
                                 },
                                 child: const Text('Apply'),
                               ),
@@ -456,10 +468,7 @@ class _FindJobsPageState extends State<FindJobsPage> {
                   const SizedBox(height: 8),
                   const Text(
                     'Discover cinnamon farming opportunities',
-                    style: TextStyle(
-                      fontSize: 16,
-                      color: Colors.white70,
-                    ),
+                    style: TextStyle(fontSize: 16, color: Colors.white70),
                   ),
                 ],
               ),
@@ -520,12 +529,15 @@ class _FindJobsPageState extends State<FindJobsPage> {
                         return StreamBuilder<Map<String, String>>(
                           stream:
                               JobRepository.streamGroupAppliedJobLabelsForWorker(
-                            currentWorkerId,
-                          ),
+                                currentWorkerId,
+                              ),
                           builder: (context, groupAppliedSnapshot) {
                             final groupAppliedJobLabels =
-                                groupAppliedSnapshot.data ?? const <String, String>{};
-                            final groupAppliedJobIds = groupAppliedJobLabels.keys.toSet();
+                                groupAppliedSnapshot.data ??
+                                const <String, String>{};
+                            final groupAppliedJobIds = groupAppliedJobLabels
+                                .keys
+                                .toSet();
                             final appliedJobIds = {
                               ...directAppliedJobIds,
                               ...groupAppliedJobIds,
@@ -537,7 +549,8 @@ class _FindJobsPageState extends State<FindJobsPage> {
                               ),
                               builder: (context, applicationsSnapshot) {
                                 final workerApplications =
-                                    applicationsSnapshot.data ?? const <WorkerApplicationRecord>[];
+                                    applicationsSnapshot.data ??
+                                    const <WorkerApplicationRecord>[];
                                 final visibleJobs = jobs
                                     .where(
                                       (job) => !_isBlockedByAcceptedWindow(
@@ -551,181 +564,247 @@ class _FindJobsPageState extends State<FindJobsPage> {
                                   return const Center(
                                     child: Text(
                                       'No open jobs available for your current accepted schedule window.',
-                                      style: TextStyle(fontSize: 16, color: Colors.grey),
+                                      style: TextStyle(
+                                        fontSize: 16,
+                                        color: Colors.grey,
+                                      ),
                                       textAlign: TextAlign.center,
                                     ),
                                   );
                                 }
 
                                 return ListView.builder(
-                              padding: const EdgeInsets.all(20),
-                              itemCount: visibleJobs.length,
-                              itemBuilder: (context, index) {
-                                final job = visibleJobs[index];
-                                final isSubmitting = _submittingJobId == job.id;
-                                final hasDirectApplied =
-                                    directAppliedJobIds.contains(job.id);
-                                final hasGroupApplied =
-                                    groupAppliedJobIds.contains(job.id);
-                                final hasApplied = appliedJobIds.contains(job.id);
-                                final groupName = groupAppliedJobLabels[job.id] ?? 'Group';
-                                final appliedLabel = hasDirectApplied
-                                    ? (hasGroupApplied
-                                      ? 'Applied (Individual + Group: $groupName)'
-                                          : 'Applied')
-                                  : 'Applied via group: $groupName';
-                                return Card(
-                                  margin: const EdgeInsets.only(bottom: 16),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(16),
-                                  ),
-                                  child: Padding(
-                                    padding: const EdgeInsets.all(16),
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Row(
+                                  padding: const EdgeInsets.all(20),
+                                  itemCount: visibleJobs.length,
+                                  itemBuilder: (context, index) {
+                                    final job = visibleJobs[index];
+                                    final isSubmitting =
+                                        _submittingJobId == job.id;
+                                    final hasDirectApplied = directAppliedJobIds
+                                        .contains(job.id);
+                                    final hasGroupApplied = groupAppliedJobIds
+                                        .contains(job.id);
+                                    final hasApplied = appliedJobIds.contains(
+                                      job.id,
+                                    );
+                                    final groupName =
+                                        groupAppliedJobLabels[job.id] ??
+                                        'Group';
+                                    final appliedLabel = hasDirectApplied
+                                        ? (hasGroupApplied
+                                              ? 'Applied (Individual + Group: $groupName)'
+                                              : 'Applied')
+                                        : 'Applied via group: $groupName';
+                                    return Card(
+                                      margin: const EdgeInsets.only(bottom: 16),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(16),
+                                      ),
+                                      child: Padding(
+                                        padding: const EdgeInsets.all(16),
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
                                           children: [
-                                            const Icon(Icons.agriculture, color: Colors.brown),
-                                            const SizedBox(width: 8),
-                                            Expanded(
-                                              child: Text(
-                                                job.title,
-                                                style: const TextStyle(
-                                                  fontSize: 18,
-                                                  fontWeight: FontWeight.bold,
+                                            Row(
+                                              children: [
+                                                const Icon(
+                                                  Icons.agriculture,
+                                                  color: Colors.brown,
                                                 ),
+                                                const SizedBox(width: 8),
+                                                Expanded(
+                                                  child: Text(
+                                                    job.title,
+                                                    style: const TextStyle(
+                                                      fontSize: 18,
+                                                      fontWeight:
+                                                          FontWeight.bold,
+                                                    ),
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                            const SizedBox(height: 8),
+                                            Text(
+                                              job.description,
+                                              style: TextStyle(
+                                                color: Colors.grey[600],
                                               ),
                                             ),
-                                          ],
-                                        ),
-                                        const SizedBox(height: 8),
-                                        Text(
-                                          job.description,
-                                          style: TextStyle(
-                                            color: Colors.grey[600],
-                                          ),
-                                        ),
-                                        const SizedBox(height: 12),
-                                        Wrap(
-                                          spacing: 16,
-                                          runSpacing: 8,
-                                          children: [
-                                            Row(
-                                              mainAxisSize: MainAxisSize.min,
+                                            const SizedBox(height: 12),
+                                            Wrap(
+                                              spacing: 16,
+                                              runSpacing: 8,
                                               children: [
-                                                const Icon(Icons.location_on, size: 16, color: Colors.grey),
-                                                const SizedBox(width: 4),
-                                                Text(job.location),
+                                                Row(
+                                                  mainAxisSize:
+                                                      MainAxisSize.min,
+                                                  children: [
+                                                    const Icon(
+                                                      Icons.location_on,
+                                                      size: 16,
+                                                      color: Colors.grey,
+                                                    ),
+                                                    const SizedBox(width: 4),
+                                                    Text(job.location),
+                                                  ],
+                                                ),
+                                                Row(
+                                                  mainAxisSize:
+                                                      MainAxisSize.min,
+                                                  children: [
+                                                    const Icon(
+                                                      Icons.payments,
+                                                      size: 16,
+                                                      color: Colors.grey,
+                                                    ),
+                                                    const SizedBox(width: 4),
+                                                    Text(
+                                                      'LKR ${job.paymentRate.toStringAsFixed(0)}',
+                                                    ),
+                                                  ],
+                                                ),
+                                                Row(
+                                                  mainAxisSize:
+                                                      MainAxisSize.min,
+                                                  children: [
+                                                    const Icon(
+                                                      Icons.group,
+                                                      size: 16,
+                                                      color: Colors.grey,
+                                                    ),
+                                                    const SizedBox(width: 4),
+                                                    Text(
+                                                      '${job.requiredWorkers} workers',
+                                                    ),
+                                                  ],
+                                                ),
                                               ],
                                             ),
-                                            Row(
-                                              mainAxisSize: MainAxisSize.min,
-                                              children: [
-                                                const Icon(Icons.payments, size: 16, color: Colors.grey),
-                                                const SizedBox(width: 4),
-                                                Text('LKR ${job.paymentRate.toStringAsFixed(0)}'),
-                                              ],
-                                            ),
-                                            Row(
-                                              mainAxisSize: MainAxisSize.min,
-                                              children: [
-                                                const Icon(Icons.group, size: 16, color: Colors.grey),
-                                                const SizedBox(width: 4),
-                                                Text('${job.requiredWorkers} workers'),
-                                              ],
-                                            ),
-                                          ],
-                                        ),
-                                        const SizedBox(height: 8),
-                                        Text(
-                                          'Posted by: ${job.landownerName} • Starts ${_formatDate(job.startDate)} • Est. ends ${_formatDate(_jobEndDate(job))}',
-                                          style: const TextStyle(
-                                            fontSize: 12,
-                                            color: Colors.grey,
-                                          ),
-                                        ),
-                                        const SizedBox(height: 6),
-                                        _buildLandownerRating(job.landownerId),
-                                        if (hasApplied) ...[
-                                          const SizedBox(height: 10),
-                                          Container(
-                                            padding: const EdgeInsets.symmetric(
-                                              horizontal: 10,
-                                              vertical: 6,
-                                            ),
-                                            decoration: BoxDecoration(
-                                              color: Colors.green.withValues(alpha: 0.12),
-                                              borderRadius: BorderRadius.circular(999),
-                                            ),
-                                            child: Text(
-                                              appliedLabel,
+                                            const SizedBox(height: 8),
+                                            Text(
+                                              'Posted by: ${job.landownerName} • Starts ${_formatDate(job.startDate)} • Est. ends ${_formatDate(_jobEndDate(job))}',
                                               style: const TextStyle(
-                                                color: Colors.green,
-                                                fontWeight: FontWeight.bold,
                                                 fontSize: 12,
+                                                color: Colors.grey,
                                               ),
                                             ),
-                                          ),
-                                        ],
-                                        const SizedBox(height: 16),
-                                        Row(
-                                          children: [
-                                            Expanded(
-                                              child: ElevatedButton(
-                                                onPressed: isSubmitting || hasApplied
-                                                    ? null
-                                                    : () => _applyForJob(job),
-                                                style: ElevatedButton.styleFrom(
-                                                  backgroundColor: hasApplied
-                                                      ? Colors.grey
-                                                      : Colors.brown,
-                                                  shape: RoundedRectangleBorder(
-                                                    borderRadius: BorderRadius.circular(12),
-                                                  ),
-                                                ),
-                                                child: isSubmitting
-                                                    ? const SizedBox(
-                                                        height: 20,
-                                                        width: 20,
-                                                        child: CircularProgressIndicator(
-                                                          strokeWidth: 2,
-                                                          color: Colors.white,
-                                                        ),
-                                                      )
-                                                    : Text(hasApplied ? 'Applied' : 'Apply Now'),
-                                              ),
+                                            const SizedBox(height: 6),
+                                            _buildLandownerRating(
+                                              job.landownerId,
                                             ),
-                                            const SizedBox(width: 10),
-                                            Expanded(
-                                              child: OutlinedButton.icon(
-                                                onPressed: isSubmitting || hasApplied
-                                                    ? null
-                                                    : () => _showGroupApplyDialog(job),
-                                                style: OutlinedButton.styleFrom(
-                                                  foregroundColor: hasApplied
-                                                      ? Colors.grey
-                                                      : Colors.brown,
-                                                  side: BorderSide(
-                                                    color: hasApplied
-                                                        ? Colors.grey
-                                                        : Colors.brown,
-                                                  ),
-                                                  shape: RoundedRectangleBorder(
-                                                    borderRadius: BorderRadius.circular(12),
+                                            if (hasApplied) ...[
+                                              const SizedBox(height: 10),
+                                              Container(
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                      horizontal: 10,
+                                                      vertical: 6,
+                                                    ),
+                                                decoration: BoxDecoration(
+                                                  color: Colors.green
+                                                      .withValues(alpha: 0.12),
+                                                  borderRadius:
+                                                      BorderRadius.circular(
+                                                        999,
+                                                      ),
+                                                ),
+                                                child: Text(
+                                                  appliedLabel,
+                                                  style: const TextStyle(
+                                                    color: Colors.green,
+                                                    fontWeight: FontWeight.bold,
+                                                    fontSize: 12,
                                                   ),
                                                 ),
-                                                icon: const Icon(Icons.groups),
-                                                label: const Text('As Group'),
                                               ),
+                                            ],
+                                            const SizedBox(height: 16),
+                                            Row(
+                                              children: [
+                                                Expanded(
+                                                  child: ElevatedButton(
+                                                    onPressed:
+                                                        isSubmitting ||
+                                                            hasApplied
+                                                        ? null
+                                                        : () =>
+                                                              _applyForJob(job),
+                                                    style: ElevatedButton.styleFrom(
+                                                      backgroundColor:
+                                                          hasApplied
+                                                          ? Colors.grey
+                                                          : Colors.brown,
+                                                      shape: RoundedRectangleBorder(
+                                                        borderRadius:
+                                                            BorderRadius.circular(
+                                                              12,
+                                                            ),
+                                                      ),
+                                                    ),
+                                                    child: isSubmitting
+                                                        ? const SizedBox(
+                                                            height: 20,
+                                                            width: 20,
+                                                            child:
+                                                                CircularProgressIndicator(
+                                                                  strokeWidth:
+                                                                      2,
+                                                                  color: Colors
+                                                                      .white,
+                                                                ),
+                                                          )
+                                                        : Text(
+                                                            hasApplied
+                                                                ? 'Applied'
+                                                                : 'Apply Now',
+                                                          ),
+                                                  ),
+                                                ),
+                                                const SizedBox(width: 10),
+                                                Expanded(
+                                                  child: OutlinedButton.icon(
+                                                    onPressed:
+                                                        isSubmitting ||
+                                                            hasApplied
+                                                        ? null
+                                                        : () =>
+                                                              _showGroupApplyDialog(
+                                                                job,
+                                                              ),
+                                                    style: OutlinedButton.styleFrom(
+                                                      foregroundColor:
+                                                          hasApplied
+                                                          ? Colors.grey
+                                                          : Colors.brown,
+                                                      side: BorderSide(
+                                                        color: hasApplied
+                                                            ? Colors.grey
+                                                            : Colors.brown,
+                                                      ),
+                                                      shape: RoundedRectangleBorder(
+                                                        borderRadius:
+                                                            BorderRadius.circular(
+                                                              12,
+                                                            ),
+                                                      ),
+                                                    ),
+                                                    icon: const Icon(
+                                                      Icons.groups,
+                                                    ),
+                                                    label: const Text(
+                                                      'As Group',
+                                                    ),
+                                                  ),
+                                                ),
+                                              ],
                                             ),
                                           ],
                                         ),
-                                      ],
-                                    ),
-                                  ),
-                                );
-                              },
+                                      ),
+                                    );
+                                  },
                                 );
                               },
                             );
@@ -755,10 +834,23 @@ class _ApprovedJobsPageState extends State<ApprovedJobsPage> {
   String? _actionApplicationId;
   final Map<String, bool> _ratedJobs = {}; // Track which jobs have been rated
   bool _showIndividualApplications = true;
+  late DateTime _focusedDay;
+  DateTime? _selectedDay;
+  final List<Color> _jobColors = [
+    const Color(0xFF6366F1), // Indigo
+    const Color(0xFFED64A6), // Pink
+    const Color(0xFF00D084), // Green
+    const Color(0xFFFFA626), // Orange
+    const Color(0xFF9F7AEA), // Purple
+    const Color(0xFF38B6FF), // Blue
+    const Color(0xFFFCA311), // Amber
+    const Color(0xFFFF6B6B), // Red
+  ];
 
   @override
   void initState() {
     super.initState();
+    _focusedDay = DateTime.now();
     final workerId = AuthService.currentUserId;
     if (workerId != null) {
       JobRepository.expirePendingApprovalsForWorker(workerId);
@@ -861,6 +953,168 @@ class _ApprovedJobsPageState extends State<ApprovedJobsPage> {
     }
   }
 
+  Color _getJobColor(String jobId, int jobIndex) {
+    return _jobColors[jobIndex % _jobColors.length];
+  }
+
+  bool _hasJobOnDate(DateTime day, List<WorkerApplicationRecord> jobs) {
+    return jobs.any((job) {
+      final endDate = _jobEndDate(job);
+      return !day.isBefore(job.startDate) &&
+          !day.isAfter(endDate) &&
+          (job.status == 'accepted' ||
+              job.status == 'in_progress' ||
+              job.status == 'completed');
+    });
+  }
+
+  List<WorkerApplicationRecord> _getJobsForDate(
+    DateTime day,
+    List<WorkerApplicationRecord> jobs,
+  ) {
+    return jobs.where((job) {
+      final endDate = _jobEndDate(job);
+      return !day.isBefore(job.startDate) &&
+          !day.isAfter(endDate) &&
+          (job.status == 'accepted' ||
+              job.status == 'in_progress' ||
+              job.status == 'completed');
+    }).toList();
+  }
+
+  Widget _buildJobCalendar(List<WorkerApplicationRecord> jobs) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Appointed Job Schedule',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 12),
+          TableCalendar(
+            focusedDay: _focusedDay,
+            firstDay: DateTime.now(),
+            lastDay: DateTime.now().add(const Duration(days: 365)),
+            selectedDayPredicate: (day) => isSameDay(_selectedDay, day),
+            onDaySelected: (selectedDay, focusedDay) {
+              setState(() {
+                _selectedDay = selectedDay;
+                _focusedDay = focusedDay;
+              });
+            },
+            onPageChanged: (focusedDay) {
+              _focusedDay = focusedDay;
+            },
+            calendarBuilders: CalendarBuilders(
+              markerBuilder: (context, date, events) {
+                if (_hasJobOnDate(date, jobs)) {
+                  final jobsOnDate = _getJobsForDate(date, jobs);
+                  return Positioned(
+                    bottom: 1,
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: jobsOnDate.asMap().entries.map((entry) {
+                        final index = entry.key;
+                        final color = _getJobColor(entry.value.jobId, index);
+                        return Container(
+                          margin: const EdgeInsets.symmetric(horizontal: 1),
+                          width: 6,
+                          height: 6,
+                          decoration: BoxDecoration(
+                            color: color,
+                            shape: BoxShape.circle,
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                  );
+                }
+                return null;
+              },
+            ),
+            headerStyle: const HeaderStyle(
+              formatButtonVisible: false,
+              titleCentered: true,
+              titleTextStyle: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            calendarStyle: CalendarStyle(
+              todayDecoration: BoxDecoration(
+                color: Colors.blue.withValues(alpha: 0.3),
+                shape: BoxShape.circle,
+              ),
+              selectedDecoration: BoxDecoration(
+                color: Colors.blue,
+                shape: BoxShape.circle,
+              ),
+              weekendTextStyle: const TextStyle(color: Colors.grey),
+            ),
+          ),
+          if (_selectedDay != null) ...[
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.grey[100],
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Jobs on ${_formatDate(_selectedDay!)}',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: _getJobsForDate(_selectedDay!, jobs)
+                        .asMap()
+                        .entries
+                        .map((entry) {
+                          final job = entry.value;
+                          final color = _getJobColor(job.jobId, entry.key);
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 8),
+                            child: Row(
+                              children: [
+                                Container(
+                                  width: 12,
+                                  height: 12,
+                                  decoration: BoxDecoration(
+                                    color: color,
+                                    shape: BoxShape.circle,
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    job.jobTitle,
+                                    style: const TextStyle(fontSize: 13),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        })
+                        .toList(),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
   Future<bool> _checkIfJobRated({
     required String workerId,
     required String applicationId,
@@ -959,7 +1213,10 @@ class _ApprovedJobsPageState extends State<ApprovedJobsPage> {
         children: [
           Icon(Icons.circle, size: 10, color: color),
           const SizedBox(width: 6),
-          Text(label, style: const TextStyle(color: Colors.white, fontSize: 12)),
+          Text(
+            label,
+            style: const TextStyle(color: Colors.white, fontSize: 12),
+          ),
         ],
       );
     }
@@ -1036,9 +1293,9 @@ class _ApprovedJobsPageState extends State<ApprovedJobsPage> {
         return;
       }
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Group offer declined.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Group offer declined.')));
     } catch (error) {
       if (!mounted) {
         return;
@@ -1106,7 +1363,9 @@ class _ApprovedJobsPageState extends State<ApprovedJobsPage> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Job accepted. Only overlapping approved offers were declined.'),
+          content: Text(
+            'Job accepted. Only overlapping approved offers were declined.',
+          ),
         ),
       );
     } catch (error) {
@@ -1210,7 +1469,9 @@ class _ApprovedJobsPageState extends State<ApprovedJobsPage> {
                 if (quillCount == null || quillCount <= 0) {
                   messenger.showSnackBar(
                     const SnackBar(
-                      content: Text('Enter a valid quill count greater than zero.'),
+                      content: Text(
+                        'Enter a valid quill count greater than zero.',
+                      ),
                     ),
                   );
                   return;
@@ -1236,7 +1497,9 @@ class _ApprovedJobsPageState extends State<ApprovedJobsPage> {
                   if (!mounted) {
                     return;
                   }
-                  messenger.showSnackBar(SnackBar(content: Text(_readableError(error))));
+                  messenger.showSnackBar(
+                    SnackBar(content: Text(_readableError(error))),
+                  );
                 }
               },
               child: const Text('Save'),
@@ -1293,7 +1556,9 @@ class _ApprovedJobsPageState extends State<ApprovedJobsPage> {
                 if (quillCount == null || quillCount <= 0) {
                   messenger.showSnackBar(
                     const SnackBar(
-                      content: Text('Enter a valid quill count greater than zero.'),
+                      content: Text(
+                        'Enter a valid quill count greater than zero.',
+                      ),
                     ),
                   );
                   return;
@@ -1313,13 +1578,17 @@ class _ApprovedJobsPageState extends State<ApprovedJobsPage> {
 
                   Navigator.of(this.context).pop();
                   messenger.showSnackBar(
-                    const SnackBar(content: Text('Group daily progress recorded.')),
+                    const SnackBar(
+                      content: Text('Group daily progress recorded.'),
+                    ),
                   );
                 } catch (error) {
                   if (!mounted) {
                     return;
                   }
-                  messenger.showSnackBar(SnackBar(content: Text(_readableError(error))));
+                  messenger.showSnackBar(
+                    SnackBar(content: Text(_readableError(error))),
+                  );
                 }
               },
               child: const Text('Save'),
@@ -1378,9 +1647,9 @@ class _ApprovedJobsPageState extends State<ApprovedJobsPage> {
         return;
       }
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Job marked as completed.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Job marked as completed.')));
 
       await Future.delayed(const Duration(milliseconds: 500));
 
@@ -1388,10 +1657,7 @@ class _ApprovedJobsPageState extends State<ApprovedJobsPage> {
         return;
       }
 
-      await _showRatingDialog(
-        workerId: workerId,
-        applicationId: applicationId,
-      );
+      await _showRatingDialog(workerId: workerId, applicationId: applicationId);
     } catch (error) {
       if (!mounted) {
         return;
@@ -1595,13 +1861,17 @@ class _ApprovedJobsPageState extends State<ApprovedJobsPage> {
 
                       Navigator.of(this.context).pop();
                       messenger.showSnackBar(
-                        const SnackBar(content: Text('Rating submitted. Thank you!')),
+                        const SnackBar(
+                          content: Text('Rating submitted. Thank you!'),
+                        ),
                       );
                     } catch (error) {
                       if (!mounted) {
                         return;
                       }
-                      messenger.showSnackBar(SnackBar(content: Text(_readableError(error))));
+                      messenger.showSnackBar(
+                        SnackBar(content: Text(_readableError(error))),
+                      );
                     }
                   },
                   child: const Text('Submit Rating'),
@@ -1651,7 +1921,9 @@ class _ApprovedJobsPageState extends State<ApprovedJobsPage> {
     if (alreadyRated) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('You have already rated this landowner.')),
+          const SnackBar(
+            content: Text('You have already rated this landowner.'),
+          ),
         );
       }
       return;
@@ -1740,13 +2012,17 @@ class _ApprovedJobsPageState extends State<ApprovedJobsPage> {
                         _ratedJobs[groupApplicationId] = true;
                       });
                       messenger.showSnackBar(
-                        const SnackBar(content: Text('Rating submitted. Thank you!')),
+                        const SnackBar(
+                          content: Text('Rating submitted. Thank you!'),
+                        ),
                       );
                     } catch (error) {
                       if (!mounted) {
                         return;
                       }
-                      messenger.showSnackBar(SnackBar(content: Text(_readableError(error))));
+                      messenger.showSnackBar(
+                        SnackBar(content: Text(_readableError(error))),
+                      );
                     }
                   },
                   child: const Text('Submit Rating'),
@@ -1789,7 +2065,11 @@ class _ApprovedJobsPageState extends State<ApprovedJobsPage> {
                   padding: const EdgeInsets.only(top: 6),
                   child: Row(
                     children: [
-                      const Icon(Icons.fiber_manual_record, size: 10, color: Colors.blue),
+                      const Icon(
+                        Icons.fiber_manual_record,
+                        size: 10,
+                        color: Colors.blue,
+                      ),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
@@ -1809,7 +2089,9 @@ class _ApprovedJobsPageState extends State<ApprovedJobsPage> {
 
   Widget _buildGroupProgressHistory(String groupApplicationId) {
     return StreamBuilder<List<TaskProgressRecord>>(
-      stream: JobRepository.streamProgressForGroupApplication(groupApplicationId),
+      stream: JobRepository.streamProgressForGroupApplication(
+        groupApplicationId,
+      ),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Padding(
@@ -1837,7 +2119,11 @@ class _ApprovedJobsPageState extends State<ApprovedJobsPage> {
                   padding: const EdgeInsets.only(top: 6),
                   child: Row(
                     children: [
-                      const Icon(Icons.fiber_manual_record, size: 10, color: Colors.blue),
+                      const Icon(
+                        Icons.fiber_manual_record,
+                        size: 10,
+                        color: Colors.blue,
+                      ),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
@@ -1891,10 +2177,7 @@ class _ApprovedJobsPageState extends State<ApprovedJobsPage> {
                   const SizedBox(height: 8),
                   const Text(
                     'Your confirmed cinnamon farming assignments',
-                    style: TextStyle(
-                      fontSize: 16,
-                      color: Colors.white70,
-                    ),
+                    style: TextStyle(fontSize: 16, color: Colors.white70),
                   ),
                   const SizedBox(height: 10),
                   _buildFlowLegend(),
@@ -1918,30 +2201,41 @@ class _ApprovedJobsPageState extends State<ApprovedJobsPage> {
                         ),
                       )
                     : StreamBuilder<List<WorkerApplicationRecord>>(
-                        stream: JobRepository.streamApplicationsForWorker(workerId),
+                        stream: JobRepository.streamApplicationsForWorker(
+                          workerId,
+                        ),
                         builder: (context, snapshot) {
-                          if (snapshot.connectionState == ConnectionState.waiting) {
-                            return const Center(child: CircularProgressIndicator());
+                          if (snapshot.connectionState ==
+                              ConnectionState.waiting) {
+                            return const Center(
+                              child: CircularProgressIndicator(),
+                            );
                           }
 
                           if (snapshot.hasError) {
                             return const Center(
                               child: Text(
                                 'Unable to load approved jobs right now.',
-                                style: TextStyle(fontSize: 18, color: Colors.grey),
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  color: Colors.grey,
+                                ),
                               ),
                             );
                           }
 
-                          final approvedJobs = snapshot.data ??
+                          final approvedJobs =
+                              snapshot.data ??
                               const <WorkerApplicationRecord>[];
 
                           return StreamBuilder<List<GroupJobApplicationRecord>>(
-                            stream: JobRepository.streamGroupApplicationsForWorker(
-                              workerId,
-                            ),
+                            stream:
+                                JobRepository.streamGroupApplicationsForWorker(
+                                  workerId,
+                                ),
                             builder: (context, groupSnapshot) {
-                              final groupApplications = groupSnapshot.data ??
+                              final groupApplications =
+                                  groupSnapshot.data ??
                                   const <GroupJobApplicationRecord>[];
 
                               if (approvedJobs.isEmpty &&
@@ -1949,440 +2243,582 @@ class _ApprovedJobsPageState extends State<ApprovedJobsPage> {
                                 return const Center(
                                   child: Text(
                                     'No approved jobs yet',
-                                    style: TextStyle(fontSize: 18, color: Colors.grey),
+                                    style: TextStyle(
+                                      fontSize: 18,
+                                      color: Colors.grey,
+                                    ),
                                   ),
                                 );
                               }
 
-                              final individualCards = approvedJobs.map((job) {
-                                final isBusy = _actionApplicationId == job.id;
-                                final statusColor = _statusColor(job.status);
-                                return Card(
-                                elevation: 4,
-                                margin: const EdgeInsets.only(bottom: 16),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(16),
-                                ),
-                                child: Padding(
-                                  padding: const EdgeInsets.all(16),
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Row(
-                                        children: [
-                                          const Icon(Icons.check_circle, color: Colors.green),
-                                          const SizedBox(width: 8),
-                                          Expanded(
-                                            child: Text(
-                                              job.jobTitle,
-                                              style: const TextStyle(
-                                                fontSize: 18,
-                                                fontWeight: FontWeight.bold,
-                                              ),
-                                            ),
-                                          ),
-                                        ],
+                              final individualCards = approvedJobs
+                                  .map((job) {
+                                    final isBusy =
+                                        _actionApplicationId == job.id;
+                                    final statusColor = _statusColor(
+                                      job.status,
+                                    );
+                                    return Card(
+                                      elevation: 4,
+                                      margin: const EdgeInsets.only(bottom: 16),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(16),
                                       ),
-                                      const SizedBox(height: 8),
-                                      Row(
-                                        children: [
-                                          const Icon(Icons.location_on, size: 16, color: Colors.grey),
-                                          const SizedBox(width: 4),
-                                          Expanded(child: Text(job.location)),
-                                          const SizedBox(width: 16),
-                                          const Icon(Icons.payments, size: 16, color: Colors.grey),
-                                          const SizedBox(width: 4),
-                                          Text('LKR ${job.paymentRate.toStringAsFixed(0)}'),
-                                        ],
-                                      ),
-                                      const SizedBox(height: 8),
-                                      Text(
-                                        'Start Date: ${_formatDate(job.startDate)}',
-                                        style: const TextStyle(
-                                          fontSize: 14,
-                                          color: Colors.blue,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 4),
-                                      Text(
-                                        'Estimated End Date: ${_formatDate(_jobEndDate(job))}',
-                                        style: const TextStyle(
-                                          fontSize: 13,
-                                          color: Colors.blueGrey,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 4),
-                                      Text(
-                                        'Landowner: ${job.landownerName}',
-                                        style: const TextStyle(
-                                          fontSize: 13,
-                                          color: Colors.grey,
-                                        ),
-                                      ),
-                                      if (job.status == 'approved') ...[
-                                        const SizedBox(height: 4),
-                                        Text(
-                                          _decisionWindowLabel(job.decisionDeadline),
-                                          style: const TextStyle(
-                                            fontSize: 13,
-                                            color: Colors.deepOrange,
-                                          ),
-                                        ),
-                                      ],
-                                      const SizedBox(height: 8),
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                        decoration: BoxDecoration(
-                                          color: statusColor.withValues(alpha: 0.1),
-                                          borderRadius: BorderRadius.circular(12),
-                                        ),
-                                        child: Text(
-                                          _applicationStatusLabel(job.status),
-                                          style: TextStyle(
-                                            color: statusColor,
-                                            fontWeight: FontWeight.bold,
-                                          ),
-                                        ),
-                                      ),
-                                      if (job.status == 'approved') ...[
-                                        const SizedBox(height: 12),
-                                        Row(
+                                      child: Padding(
+                                        padding: const EdgeInsets.all(16),
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
                                           children: [
-                                            Expanded(
-                                              child: OutlinedButton(
-                                                onPressed: isBusy
-                                                    ? null
-                                                    : () => _declineOffer(
-                                                          workerId: workerId,
-                                                          applicationId: job.id,
-                                                        ),
-                                                style: OutlinedButton.styleFrom(
-                                                  foregroundColor: Colors.red,
+                                            Row(
+                                              children: [
+                                                const Icon(
+                                                  Icons.check_circle,
+                                                  color: Colors.green,
                                                 ),
-                                                child: const Text('Decline'),
-                                              ),
-                                            ),
-                                            const SizedBox(width: 12),
-                                            Expanded(
-                                              child: ElevatedButton(
-                                                onPressed: isBusy
-                                                    ? null
-                                                    : () => _acceptOffer(
-                                                          workerId: workerId,
-                                                          applicationId: job.id,
-                                                        ),
-                                                style: ElevatedButton.styleFrom(
-                                                  backgroundColor: Colors.green,
-                                                ),
-                                                child: isBusy
-                                                    ? const SizedBox(
-                                                        height: 18,
-                                                        width: 18,
-                                                        child:
-                                                            CircularProgressIndicator(
-                                                              strokeWidth: 2,
-                                                              color: Colors.white,
-                                                            ),
-                                                      )
-                                                    : const Text('Accept'),
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ],
-                                      if (job.status == 'accepted' ||
-                                          job.status == 'in_progress') ...[
-                                        const SizedBox(height: 12),
-                                        SizedBox(
-                                          width: double.infinity,
-                                          child: ElevatedButton.icon(
-                                            onPressed: () => _showProgressDialog(
-                                              workerId: workerId,
-                                              job: job,
-                                            ),
-                                            icon: const Icon(Icons.edit_note),
-                                            label: const Text('Record Daily Progress'),
-                                            style: ElevatedButton.styleFrom(
-                                              backgroundColor: Colors.blue,
-                                            ),
-                                          ),
-                                        ),
-                                        const SizedBox(height: 10),
-                                        SizedBox(
-                                          width: double.infinity,
-                                          child: OutlinedButton.icon(
-                                            onPressed: isBusy
-                                                ? null
-                                                : () => _markCompleted(
-                                                      workerId: workerId,
-                                                      applicationId: job.id,
+                                                const SizedBox(width: 8),
+                                                Expanded(
+                                                  child: Text(
+                                                    job.jobTitle,
+                                                    style: const TextStyle(
+                                                      fontSize: 18,
+                                                      fontWeight:
+                                                          FontWeight.bold,
                                                     ),
-                                            icon: const Icon(Icons.check_circle_outline),
-                                            label: isBusy
-                                                ? const Text('Updating...')
-                                                : const Text('Mark Job Completed'),
-                                          ),
-                                        ),
-                                      ],
-                                      if (job.status == 'completed') ...[
-                                        const SizedBox(height: 12),
-                                        FutureBuilder<bool>(
-                                          future: _checkIfJobRated(
-                                            workerId: workerId,
-                                            applicationId: job.id,
-                                          ),
-                                          builder: (context, snapshot) {
-                                            final alreadyRated = snapshot.data ?? false;
-                                            return SizedBox(
-                                              width: double.infinity,
-                                              child: Tooltip(
-                                                message: alreadyRated 
-                                                    ? 'You have already rated this landowner for this job'
-                                                    : '',
-                                                child: OutlinedButton.icon(
-                                                  onPressed: alreadyRated
-                                                      ? null
-                                                      : () => _showRatingDialog(
-                                                            workerId: workerId,
-                                                            applicationId: job.id,
-                                                          ),
-                                                  icon: const Icon(Icons.star_outline),
-                                                  label: Text(alreadyRated ? 'Rating Submitted' : 'Rate Landowner'),
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                            const SizedBox(height: 8),
+                                            Row(
+                                              children: [
+                                                const Icon(
+                                                  Icons.location_on,
+                                                  size: 16,
+                                                  color: Colors.grey,
+                                                ),
+                                                const SizedBox(width: 4),
+                                                Expanded(
+                                                  child: Text(job.location),
+                                                ),
+                                                const SizedBox(width: 16),
+                                                const Icon(
+                                                  Icons.payments,
+                                                  size: 16,
+                                                  color: Colors.grey,
+                                                ),
+                                                const SizedBox(width: 4),
+                                                Text(
+                                                  'LKR ${job.paymentRate.toStringAsFixed(0)}',
+                                                ),
+                                              ],
+                                            ),
+                                            const SizedBox(height: 8),
+                                            Text(
+                                              'Start Date: ${_formatDate(job.startDate)}',
+                                              style: const TextStyle(
+                                                fontSize: 14,
+                                                color: Colors.blue,
+                                              ),
+                                            ),
+                                            const SizedBox(height: 4),
+                                            Text(
+                                              'Estimated End Date: ${_formatDate(_jobEndDate(job))}',
+                                              style: const TextStyle(
+                                                fontSize: 13,
+                                                color: Colors.blueGrey,
+                                              ),
+                                            ),
+                                            const SizedBox(height: 4),
+                                            Text(
+                                              'Landowner: ${job.landownerName}',
+                                              style: const TextStyle(
+                                                fontSize: 13,
+                                                color: Colors.grey,
+                                              ),
+                                            ),
+                                            if (job.status == 'approved') ...[
+                                              const SizedBox(height: 4),
+                                              Text(
+                                                _decisionWindowLabel(
+                                                  job.decisionDeadline,
+                                                ),
+                                                style: const TextStyle(
+                                                  fontSize: 13,
+                                                  color: Colors.deepOrange,
                                                 ),
                                               ),
-                                            );
-                                          },
-                                        ),
-                                      ],
-                                      if (job.status == 'accepted' ||
-                                          job.status == 'in_progress' ||
-                                          job.status == 'completed') ...[
-                                        const SizedBox(height: 12),
-                                        const Text(
-                                          'Recent Daily Progress',
-                                          style: TextStyle(
-                                            fontWeight: FontWeight.bold,
-                                            fontSize: 14,
-                                          ),
-                                        ),
-                                        _buildProgressHistory(job.id),
-                                      ],
-                                    ],
-                                  ),
-                                ),
-                              );
-                              }).toList(growable: false);
-
-                              final groupCards = groupApplications.map((application) {
-                                final statusColor = _statusColor(application.status);
-                                final isCoordinator = application.coordinatorId == workerId;
-                                final isBusy = _actionApplicationId == application.id;
-                                return Card(
-                                  elevation: 4,
-                                  margin: const EdgeInsets.only(bottom: 16),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(16),
-                                  ),
-                                  child: Padding(
-                                    padding: const EdgeInsets.all(16),
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Row(
-                                          children: [
-                                            const Icon(Icons.groups, color: Colors.brown),
-                                            const SizedBox(width: 8),
-                                            Expanded(
+                                            ],
+                                            const SizedBox(height: 8),
+                                            Container(
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    horizontal: 8,
+                                                    vertical: 4,
+                                                  ),
+                                              decoration: BoxDecoration(
+                                                color: statusColor.withValues(
+                                                  alpha: 0.1,
+                                                ),
+                                                borderRadius:
+                                                    BorderRadius.circular(12),
+                                              ),
                                               child: Text(
-                                                application.jobTitle,
-                                                style: const TextStyle(
-                                                  fontSize: 17,
+                                                _applicationStatusLabel(
+                                                  job.status,
+                                                ),
+                                                style: TextStyle(
+                                                  color: statusColor,
                                                   fontWeight: FontWeight.bold,
                                                 ),
                                               ),
                                             ),
-                                          ],
-                                        ),
-                                        const SizedBox(height: 8),
-                                        Text(
-                                          'Group: ${application.groupName}',
-                                          style: const TextStyle(fontWeight: FontWeight.w600),
-                                        ),
-                                        const SizedBox(height: 4),
-                                        Text(
-                                          'Landowner: ${application.landownerName}',
-                                          style: const TextStyle(color: Colors.grey),
-                                        ),
-                                        const SizedBox(height: 4),
-                                        Text(
-                                          'Members: ${application.memberIds.length}',
-                                          style: const TextStyle(color: Colors.grey),
-                                        ),
-                                        const SizedBox(height: 10),
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 8,
-                                            vertical: 4,
-                                          ),
-                                          decoration: BoxDecoration(
-                                            color: statusColor.withValues(alpha: 0.1),
-                                            borderRadius: BorderRadius.circular(12),
-                                          ),
-                                          child: Text(
-                                            _groupStatusLabel(application.status),
-                                            style: TextStyle(
-                                              color: statusColor,
-                                              fontWeight: FontWeight.bold,
-                                            ),
-                                          ),
-                                        ),
-                                        const SizedBox(height: 6),
-                                        Text(
-                                          _groupStatusLabel(application.status),
-                                          style: const TextStyle(
-                                            color: Colors.grey,
-                                            fontSize: 12,
-                                          ),
-                                        ),
-                                        if (isCoordinator && application.status == 'approved') ...[
-                                          const SizedBox(height: 10),
-                                          Row(
-                                            children: [
-                                              Expanded(
-                                                child: OutlinedButton(
-                                                  onPressed: isBusy
-                                                      ? null
-                                                      : () => _declineGroupOffer(
-                                                            workerId: workerId,
-                                                            groupApplicationId: application.id,
+                                            if (job.status == 'approved') ...[
+                                              const SizedBox(height: 12),
+                                              Row(
+                                                children: [
+                                                  Expanded(
+                                                    child: OutlinedButton(
+                                                      onPressed: isBusy
+                                                          ? null
+                                                          : () => _declineOffer(
+                                                              workerId:
+                                                                  workerId,
+                                                              applicationId:
+                                                                  job.id,
+                                                            ),
+                                                      style:
+                                                          OutlinedButton.styleFrom(
+                                                            foregroundColor:
+                                                                Colors.red,
                                                           ),
-                                                  style: OutlinedButton.styleFrom(
-                                                    foregroundColor: Colors.red,
+                                                      child: const Text(
+                                                        'Decline',
+                                                      ),
+                                                    ),
                                                   ),
-                                                  child: const Text('Decline Group'),
+                                                  const SizedBox(width: 12),
+                                                  Expanded(
+                                                    child: ElevatedButton(
+                                                      onPressed: isBusy
+                                                          ? null
+                                                          : () => _acceptOffer(
+                                                              workerId:
+                                                                  workerId,
+                                                              applicationId:
+                                                                  job.id,
+                                                            ),
+                                                      style:
+                                                          ElevatedButton.styleFrom(
+                                                            backgroundColor:
+                                                                Colors.green,
+                                                          ),
+                                                      child: isBusy
+                                                          ? const SizedBox(
+                                                              height: 18,
+                                                              width: 18,
+                                                              child:
+                                                                  CircularProgressIndicator(
+                                                                    strokeWidth:
+                                                                        2,
+                                                                    color: Colors
+                                                                        .white,
+                                                                  ),
+                                                            )
+                                                          : const Text(
+                                                              'Accept',
+                                                            ),
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ],
+                                            if (job.status == 'accepted' ||
+                                                job.status ==
+                                                    'in_progress') ...[
+                                              const SizedBox(height: 12),
+                                              SizedBox(
+                                                width: double.infinity,
+                                                child: ElevatedButton.icon(
+                                                  onPressed: () =>
+                                                      _showProgressDialog(
+                                                        workerId: workerId,
+                                                        job: job,
+                                                      ),
+                                                  icon: const Icon(
+                                                    Icons.edit_note,
+                                                  ),
+                                                  label: const Text(
+                                                    'Record Daily Progress',
+                                                  ),
+                                                  style:
+                                                      ElevatedButton.styleFrom(
+                                                        backgroundColor:
+                                                            Colors.blue,
+                                                      ),
                                                 ),
                                               ),
-                                              const SizedBox(width: 10),
-                                              Expanded(
-                                                child: ElevatedButton(
+                                              const SizedBox(height: 10),
+                                              SizedBox(
+                                                width: double.infinity,
+                                                child: OutlinedButton.icon(
                                                   onPressed: isBusy
                                                       ? null
-                                                      : () => _acceptGroupOffer(
-                                                            workerId: workerId,
-                                                            groupApplicationId: application.id,
-                                                          ),
-                                                  style: ElevatedButton.styleFrom(
-                                                    backgroundColor: Colors.green,
+                                                      : () => _markCompleted(
+                                                          workerId: workerId,
+                                                          applicationId: job.id,
+                                                        ),
+                                                  icon: const Icon(
+                                                    Icons.check_circle_outline,
                                                   ),
-                                                  child: isBusy
-                                                      ? const SizedBox(
-                                                          height: 18,
-                                                          width: 18,
-                                                          child: CircularProgressIndicator(
-                                                            strokeWidth: 2,
-                                                            color: Colors.white,
-                                                          ),
+                                                  label: isBusy
+                                                      ? const Text(
+                                                          'Updating...',
                                                         )
-                                                      : const Text('Accept Group'),
+                                                      : const Text(
+                                                          'Mark Job Completed',
+                                                        ),
                                                 ),
                                               ),
                                             ],
-                                          ),
-                                        ],
-                                        if (application.status == 'accepted' ||
-                                            application.status == 'in_progress') ...[
-                                          const SizedBox(height: 10),
-                                          SizedBox(
-                                            width: double.infinity,
-                                            child: ElevatedButton.icon(
-                                              onPressed: () => _showGroupProgressDialog(
-                                                workerId: workerId,
-                                                application: application,
-                                              ),
-                                              icon: const Icon(Icons.edit_note),
-                                              label: const Text('Record Group Daily Progress'),
-                                              style: ElevatedButton.styleFrom(
-                                                backgroundColor: Colors.blue,
-                                              ),
-                                            ),
-                                          ),
-                                          if (isCoordinator) ...[
-                                            const SizedBox(height: 10),
-                                            SizedBox(
-                                              width: double.infinity,
-                                              child: OutlinedButton.icon(
-                                                onPressed: isBusy
-                                                    ? null
-                                                    : () => _markGroupCompleted(
-                                                          workerId: workerId,
-                                                          groupApplicationId:
-                                                              application.id,
-                                                        ),
-                                                icon: const Icon(
-                                                  Icons.check_circle_outline,
+                                            if (job.status == 'completed') ...[
+                                              const SizedBox(height: 12),
+                                              FutureBuilder<bool>(
+                                                future: _checkIfJobRated(
+                                                  workerId: workerId,
+                                                  applicationId: job.id,
                                                 ),
-                                                label: isBusy
-                                                    ? const Text('Updating...')
-                                                    : const Text(
-                                                        'Mark Group Job Completed',
+                                                builder: (context, snapshot) {
+                                                  final alreadyRated =
+                                                      snapshot.data ?? false;
+                                                  return SizedBox(
+                                                    width: double.infinity,
+                                                    child: Tooltip(
+                                                      message: alreadyRated
+                                                          ? 'You have already rated this landowner for this job'
+                                                          : '',
+                                                      child: OutlinedButton.icon(
+                                                        onPressed: alreadyRated
+                                                            ? null
+                                                            : () => _showRatingDialog(
+                                                                workerId:
+                                                                    workerId,
+                                                                applicationId:
+                                                                    job.id,
+                                                              ),
+                                                        icon: const Icon(
+                                                          Icons.star_outline,
+                                                        ),
+                                                        label: Text(
+                                                          alreadyRated
+                                                              ? 'Rating Submitted'
+                                                              : 'Rate Landowner',
+                                                        ),
                                                       ),
+                                                    ),
+                                                  );
+                                                },
                                               ),
-                                            ),
+                                            ],
+                                            if (job.status == 'accepted' ||
+                                                job.status == 'in_progress' ||
+                                                job.status == 'completed') ...[
+                                              const SizedBox(height: 12),
+                                              const Text(
+                                                'Recent Daily Progress',
+                                                style: TextStyle(
+                                                  fontWeight: FontWeight.bold,
+                                                  fontSize: 14,
+                                                ),
+                                              ),
+                                              _buildProgressHistory(job.id),
+                                            ],
                                           ],
-                                        ],
-                                        if (application.status == 'completed') ...[
-                                          const SizedBox(height: 12),
-                                          FutureBuilder<bool>(
-                                            future: _checkIfGroupJobRated(
-                                              workerId: workerId,
-                                              groupApplicationId: application.id,
-                                            ),
-                                            builder: (context, snapshot) {
-                                              final alreadyRated = snapshot.data ?? false;
-                                              return SizedBox(
-                                                width: double.infinity,
-                                                child: Tooltip(
-                                                  message: alreadyRated
-                                                      ? 'You have already rated this landowner for this job'
-                                                      : '',
-                                                  child: OutlinedButton.icon(
-                                                    onPressed: alreadyRated
-                                                        ? null
-                                                        : () => _showGroupRatingDialog(
-                                                              workerId: workerId,
-                                                              groupApplicationId:
-                                                                  application.id,
-                                                            ),
-                                                    icon: const Icon(Icons.star_outline),
-                                                    label: Text(
-                                                      alreadyRated
-                                                          ? 'Rating Submitted'
-                                                          : 'Rate Landowner',
+                                        ),
+                                      ),
+                                    );
+                                  })
+                                  .toList(growable: false);
+
+                              final groupCards = groupApplications
+                                  .map((application) {
+                                    final statusColor = _statusColor(
+                                      application.status,
+                                    );
+                                    final isCoordinator =
+                                        application.coordinatorId == workerId;
+                                    final isBusy =
+                                        _actionApplicationId == application.id;
+                                    return Card(
+                                      elevation: 4,
+                                      margin: const EdgeInsets.only(bottom: 16),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(16),
+                                      ),
+                                      child: Padding(
+                                        padding: const EdgeInsets.all(16),
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Row(
+                                              children: [
+                                                const Icon(
+                                                  Icons.groups,
+                                                  color: Colors.brown,
+                                                ),
+                                                const SizedBox(width: 8),
+                                                Expanded(
+                                                  child: Text(
+                                                    application.jobTitle,
+                                                    style: const TextStyle(
+                                                      fontSize: 17,
+                                                      fontWeight:
+                                                          FontWeight.bold,
                                                     ),
                                                   ),
                                                 ),
-                                              );
-                                            },
-                                          ),
-                                        ],
-                                        if (application.status == 'accepted' ||
-                                            application.status == 'in_progress' ||
-                                            application.status == 'completed') ...[
-                                          const SizedBox(height: 12),
-                                          const Text(
-                                            'Recent Group Progress',
-                                            style: TextStyle(
-                                              fontWeight: FontWeight.bold,
-                                              fontSize: 14,
+                                              ],
                                             ),
-                                          ),
-                                          _buildGroupProgressHistory(application.id),
-                                        ],
-                                      ],
-                                    ),
-                                  ),
-                                );
-                              }).toList(growable: false);
+                                            const SizedBox(height: 8),
+                                            Text(
+                                              'Group: ${application.groupName}',
+                                              style: const TextStyle(
+                                                fontWeight: FontWeight.w600,
+                                              ),
+                                            ),
+                                            const SizedBox(height: 4),
+                                            Text(
+                                              'Landowner: ${application.landownerName}',
+                                              style: const TextStyle(
+                                                color: Colors.grey,
+                                              ),
+                                            ),
+                                            const SizedBox(height: 4),
+                                            Text(
+                                              'Members: ${application.memberIds.length}',
+                                              style: const TextStyle(
+                                                color: Colors.grey,
+                                              ),
+                                            ),
+                                            const SizedBox(height: 10),
+                                            Container(
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    horizontal: 8,
+                                                    vertical: 4,
+                                                  ),
+                                              decoration: BoxDecoration(
+                                                color: statusColor.withValues(
+                                                  alpha: 0.1,
+                                                ),
+                                                borderRadius:
+                                                    BorderRadius.circular(12),
+                                              ),
+                                              child: Text(
+                                                _groupStatusLabel(
+                                                  application.status,
+                                                ),
+                                                style: TextStyle(
+                                                  color: statusColor,
+                                                  fontWeight: FontWeight.bold,
+                                                ),
+                                              ),
+                                            ),
+                                            const SizedBox(height: 6),
+                                            Text(
+                                              _groupStatusLabel(
+                                                application.status,
+                                              ),
+                                              style: const TextStyle(
+                                                color: Colors.grey,
+                                                fontSize: 12,
+                                              ),
+                                            ),
+                                            if (isCoordinator &&
+                                                application.status ==
+                                                    'approved') ...[
+                                              const SizedBox(height: 10),
+                                              Row(
+                                                children: [
+                                                  Expanded(
+                                                    child: OutlinedButton(
+                                                      onPressed: isBusy
+                                                          ? null
+                                                          : () => _declineGroupOffer(
+                                                              workerId:
+                                                                  workerId,
+                                                              groupApplicationId:
+                                                                  application
+                                                                      .id,
+                                                            ),
+                                                      style:
+                                                          OutlinedButton.styleFrom(
+                                                            foregroundColor:
+                                                                Colors.red,
+                                                          ),
+                                                      child: const Text(
+                                                        'Decline Group',
+                                                      ),
+                                                    ),
+                                                  ),
+                                                  const SizedBox(width: 10),
+                                                  Expanded(
+                                                    child: ElevatedButton(
+                                                      onPressed: isBusy
+                                                          ? null
+                                                          : () => _acceptGroupOffer(
+                                                              workerId:
+                                                                  workerId,
+                                                              groupApplicationId:
+                                                                  application
+                                                                      .id,
+                                                            ),
+                                                      style:
+                                                          ElevatedButton.styleFrom(
+                                                            backgroundColor:
+                                                                Colors.green,
+                                                          ),
+                                                      child: isBusy
+                                                          ? const SizedBox(
+                                                              height: 18,
+                                                              width: 18,
+                                                              child:
+                                                                  CircularProgressIndicator(
+                                                                    strokeWidth:
+                                                                        2,
+                                                                    color: Colors
+                                                                        .white,
+                                                                  ),
+                                                            )
+                                                          : const Text(
+                                                              'Accept Group',
+                                                            ),
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ],
+                                            if (application.status ==
+                                                    'accepted' ||
+                                                application.status ==
+                                                    'in_progress') ...[
+                                              const SizedBox(height: 10),
+                                              SizedBox(
+                                                width: double.infinity,
+                                                child: ElevatedButton.icon(
+                                                  onPressed: () =>
+                                                      _showGroupProgressDialog(
+                                                        workerId: workerId,
+                                                        application:
+                                                            application,
+                                                      ),
+                                                  icon: const Icon(
+                                                    Icons.edit_note,
+                                                  ),
+                                                  label: const Text(
+                                                    'Record Group Daily Progress',
+                                                  ),
+                                                  style:
+                                                      ElevatedButton.styleFrom(
+                                                        backgroundColor:
+                                                            Colors.blue,
+                                                      ),
+                                                ),
+                                              ),
+                                              if (isCoordinator) ...[
+                                                const SizedBox(height: 10),
+                                                SizedBox(
+                                                  width: double.infinity,
+                                                  child: OutlinedButton.icon(
+                                                    onPressed: isBusy
+                                                        ? null
+                                                        : () => _markGroupCompleted(
+                                                            workerId: workerId,
+                                                            groupApplicationId:
+                                                                application.id,
+                                                          ),
+                                                    icon: const Icon(
+                                                      Icons
+                                                          .check_circle_outline,
+                                                    ),
+                                                    label: isBusy
+                                                        ? const Text(
+                                                            'Updating...',
+                                                          )
+                                                        : const Text(
+                                                            'Mark Group Job Completed',
+                                                          ),
+                                                  ),
+                                                ),
+                                              ],
+                                            ],
+                                            if (application.status ==
+                                                'completed') ...[
+                                              const SizedBox(height: 12),
+                                              FutureBuilder<bool>(
+                                                future: _checkIfGroupJobRated(
+                                                  workerId: workerId,
+                                                  groupApplicationId:
+                                                      application.id,
+                                                ),
+                                                builder: (context, snapshot) {
+                                                  final alreadyRated =
+                                                      snapshot.data ?? false;
+                                                  return SizedBox(
+                                                    width: double.infinity,
+                                                    child: Tooltip(
+                                                      message: alreadyRated
+                                                          ? 'You have already rated this landowner for this job'
+                                                          : '',
+                                                      child: OutlinedButton.icon(
+                                                        onPressed: alreadyRated
+                                                            ? null
+                                                            : () => _showGroupRatingDialog(
+                                                                workerId:
+                                                                    workerId,
+                                                                groupApplicationId:
+                                                                    application
+                                                                        .id,
+                                                              ),
+                                                        icon: const Icon(
+                                                          Icons.star_outline,
+                                                        ),
+                                                        label: Text(
+                                                          alreadyRated
+                                                              ? 'Rating Submitted'
+                                                              : 'Rate Landowner',
+                                                        ),
+                                                      ),
+                                                    ),
+                                                  );
+                                                },
+                                              ),
+                                            ],
+                                            if (application.status ==
+                                                    'accepted' ||
+                                                application.status ==
+                                                    'in_progress' ||
+                                                application.status ==
+                                                    'completed') ...[
+                                              const SizedBox(height: 12),
+                                              const Text(
+                                                'Recent Group Progress',
+                                                style: TextStyle(
+                                                  fontWeight: FontWeight.bold,
+                                                  fontSize: 14,
+                                                ),
+                                              ),
+                                              _buildGroupProgressHistory(
+                                                application.id,
+                                              ),
+                                            ],
+                                          ],
+                                        ),
+                                      ),
+                                    );
+                                  })
+                                  .toList(growable: false);
 
                               Widget individualSection = Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -2416,13 +2852,16 @@ class _ApprovedJobsPageState extends State<ApprovedJobsPage> {
                                 ],
                               );
 
-                              final selectedSection = _showIndividualApplications
+                              final selectedSection =
+                                  _showIndividualApplications
                                   ? individualSection
                                   : groupSection;
 
                               return ListView(
                                 padding: const EdgeInsets.all(20),
                                 children: [
+                                  _buildJobCalendar(approvedJobs),
+                                  const SizedBox(height: 24),
                                   Row(
                                     children: [
                                       Expanded(
@@ -2430,13 +2869,17 @@ class _ApprovedJobsPageState extends State<ApprovedJobsPage> {
                                           onPressed: () {
                                             if (!_showIndividualApplications) {
                                               setState(() {
-                                                _showIndividualApplications = true;
+                                                _showIndividualApplications =
+                                                    true;
                                               });
                                             }
                                           },
                                           style: OutlinedButton.styleFrom(
-                                            backgroundColor: _showIndividualApplications
-                                                ? Colors.green.withValues(alpha: 0.15)
+                                            backgroundColor:
+                                                _showIndividualApplications
+                                                ? Colors.green.withValues(
+                                                    alpha: 0.15,
+                                                  )
                                                 : null,
                                             side: BorderSide(
                                               color: _showIndividualApplications
@@ -2444,7 +2887,9 @@ class _ApprovedJobsPageState extends State<ApprovedJobsPage> {
                                                   : Colors.grey,
                                             ),
                                           ),
-                                          child: const Text('Individual Applications'),
+                                          child: const Text(
+                                            'Individual Applications',
+                                          ),
                                         ),
                                       ),
                                       const SizedBox(width: 10),
@@ -2453,21 +2898,28 @@ class _ApprovedJobsPageState extends State<ApprovedJobsPage> {
                                           onPressed: () {
                                             if (_showIndividualApplications) {
                                               setState(() {
-                                                _showIndividualApplications = false;
+                                                _showIndividualApplications =
+                                                    false;
                                               });
                                             }
                                           },
                                           style: OutlinedButton.styleFrom(
-                                            backgroundColor: !_showIndividualApplications
-                                                ? Colors.green.withValues(alpha: 0.15)
+                                            backgroundColor:
+                                                !_showIndividualApplications
+                                                ? Colors.green.withValues(
+                                                    alpha: 0.15,
+                                                  )
                                                 : null,
                                             side: BorderSide(
-                                              color: !_showIndividualApplications
+                                              color:
+                                                  !_showIndividualApplications
                                                   ? Colors.green
                                                   : Colors.grey,
                                             ),
                                           ),
-                                          child: const Text('Group Applications'),
+                                          child: const Text(
+                                            'Group Applications',
+                                          ),
                                         ),
                                       ),
                                     ],
@@ -2528,7 +2980,6 @@ class _WorkerDetailsPageState extends State<WorkerDetailsPage> {
       _currentUserId = AuthService.currentUserId ?? '';
       _isLoading = false;
     });
-
   }
 
   Future<Map<String, dynamic>?> _loadProfile() async {
@@ -2553,7 +3004,8 @@ class _WorkerDetailsPageState extends State<WorkerDetailsPage> {
 
   String _readableError(Object error) {
     final text = error.toString();
-    if (text.contains('FIRESTORE') && text.contains('INTERNAL ASSERTION FAILED')) {
+    if (text.contains('FIRESTORE') &&
+        text.contains('INTERNAL ASSERTION FAILED')) {
       return 'Group action failed due to a web database issue. Please refresh and try again.';
     }
     if (text.contains('already in the group as coordinator')) {
@@ -2577,9 +3029,9 @@ class _WorkerDetailsPageState extends State<WorkerDetailsPage> {
   Future<void> _createGroup() async {
     final workerId = AuthService.currentUserId;
     if (workerId == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please sign in again.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Please sign in again.')));
       return;
     }
 
@@ -2620,9 +3072,9 @@ class _WorkerDetailsPageState extends State<WorkerDetailsPage> {
       setState(() {
         _groupNameErrorText = null;
       });
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Worker group created.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Worker group created.')));
     } catch (error) {
       if (!mounted) {
         return;
@@ -2697,7 +3149,9 @@ class _WorkerDetailsPageState extends State<WorkerDetailsPage> {
                     return;
                   }
 
-                  messenger.showSnackBar(SnackBar(content: Text(_readableError(error))));
+                  messenger.showSnackBar(
+                    SnackBar(content: Text(_readableError(error))),
+                  );
                 }
               },
               child: const Text('Add'),
@@ -2780,9 +3234,7 @@ class _WorkerDetailsPageState extends State<WorkerDetailsPage> {
       builder: (dialogContext) {
         return AlertDialog(
           title: const Text('Remove Member'),
-          content: Text(
-            'Remove $memberName from "${group.groupName}"?',
-          ),
+          content: Text('Remove $memberName from "${group.groupName}"?'),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(dialogContext).pop(false),
@@ -2837,9 +3289,7 @@ class _WorkerDetailsPageState extends State<WorkerDetailsPage> {
       builder: (dialogContext) {
         return AlertDialog(
           title: const Text('Exit Group'),
-          content: Text(
-            'Do you want to exit "${group.groupName}"?',
-          ),
+          content: Text('Do you want to exit "${group.groupName}"?'),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(dialogContext).pop(false),
@@ -2865,9 +3315,9 @@ class _WorkerDetailsPageState extends State<WorkerDetailsPage> {
         return;
       }
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('You exited the group.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('You exited the group.')));
     } catch (error) {
       if (!mounted) {
         return;
@@ -2885,10 +3335,12 @@ class _WorkerDetailsPageState extends State<WorkerDetailsPage> {
         ? const [Color(0xFF0E171A), Color(0xFF15363A)]
         : const [Colors.blueAccent, Colors.lightBlueAccent];
     final inputFill = isDark ? const Color(0xFF1A262A) : Colors.grey.shade50;
-    final groupTileColor =
-        isDark ? const Color(0xFF14201D) : Colors.grey.shade50;
-    final groupBorderColor =
-        isDark ? Colors.white.withValues(alpha: 0.08) : Colors.grey.shade300;
+    final groupTileColor = isDark
+        ? const Color(0xFF14201D)
+        : Colors.grey.shade50;
+    final groupBorderColor = isDark
+        ? Colors.white.withValues(alpha: 0.08)
+        : Colors.grey.shade300;
 
     return Container(
       decoration: BoxDecoration(
@@ -2917,10 +3369,7 @@ class _WorkerDetailsPageState extends State<WorkerDetailsPage> {
                     const SizedBox(height: 8),
                     const Text(
                       'Manage your profile information',
-                      style: TextStyle(
-                        fontSize: 16,
-                        color: Colors.white70,
-                      ),
+                      style: TextStyle(fontSize: 16, color: Colors.white70),
                     ),
                     const SizedBox(height: 30),
                     Card(
@@ -3061,7 +3510,9 @@ class _WorkerDetailsPageState extends State<WorkerDetailsPage> {
                             SizedBox(
                               width: double.infinity,
                               child: ElevatedButton.icon(
-                                onPressed: _isCreatingGroup ? null : _createGroup,
+                                onPressed: _isCreatingGroup
+                                    ? null
+                                    : _createGroup,
                                 icon: _isCreatingGroup
                                     ? const SizedBox(
                                         height: 16,
@@ -3078,9 +3529,12 @@ class _WorkerDetailsPageState extends State<WorkerDetailsPage> {
                             const SizedBox(height: 14),
                             Builder(
                               builder: (context) {
-                                final currentWorkerId = AuthService.currentUserId;
+                                final currentWorkerId =
+                                    AuthService.currentUserId;
                                 if (currentWorkerId == null) {
-                                  return const Text('Please sign in to manage groups.');
+                                  return const Text(
+                                    'Please sign in to manage groups.',
+                                  );
                                 }
 
                                 return StreamBuilder<List<WorkerGroupRecord>>(
@@ -3091,7 +3545,9 @@ class _WorkerDetailsPageState extends State<WorkerDetailsPage> {
                                     if (snapshot.connectionState ==
                                         ConnectionState.waiting) {
                                       return const Padding(
-                                        padding: EdgeInsets.symmetric(vertical: 12),
+                                        padding: EdgeInsets.symmetric(
+                                          vertical: 12,
+                                        ),
                                         child: Center(
                                           child: CircularProgressIndicator(),
                                         ),
@@ -3101,12 +3557,15 @@ class _WorkerDetailsPageState extends State<WorkerDetailsPage> {
                                     if (snapshot.hasError) {
                                       return const Text(
                                         'Unable to load groups right now.',
-                                        style: TextStyle(color: Colors.redAccent),
+                                        style: TextStyle(
+                                          color: Colors.redAccent,
+                                        ),
                                       );
                                     }
 
                                     final groups =
-                                        snapshot.data ?? const <WorkerGroupRecord>[];
+                                        snapshot.data ??
+                                        const <WorkerGroupRecord>[];
                                     if (groups.isEmpty) {
                                       return const Text(
                                         'No groups yet. Create one to start coordinating members.',
@@ -3115,192 +3574,254 @@ class _WorkerDetailsPageState extends State<WorkerDetailsPage> {
                                     }
 
                                     return Column(
-                                      children: groups.map((group) {
-                                        final isCoordinator =
-                                            group.coordinatorId == currentWorkerId;
-                                        final memberEntries = group.members
-                                            .map((member) {
-                                              final memberId =
-                                                  (member['workerId'] as String?) ?? '';
-                                              final memberName =
-                                                  (member['workerName'] as String?) ??
-                                                  'Worker';
-                                              return MapEntry(memberId, memberName);
-                                            })
-                                            .where((entry) => entry.key.isNotEmpty)
-                                            .toList(growable: false);
-                                        return Container(
-                                          margin: const EdgeInsets.only(top: 10),
-                                          padding: const EdgeInsets.all(12),
-                                          decoration: BoxDecoration(
-                                            color: groupTileColor,
-                                            borderRadius: BorderRadius.circular(12),
-                                            border: Border.all(
-                                              color: groupBorderColor,
-                                            ),
-                                          ),
-                                          child: Column(
-                                            crossAxisAlignment:
-                                                CrossAxisAlignment.start,
-                                            children: [
-                                              Row(
+                                      children: groups
+                                          .map((group) {
+                                            final isCoordinator =
+                                                group.coordinatorId ==
+                                                currentWorkerId;
+                                            final memberEntries = group.members
+                                                .map((member) {
+                                                  final memberId =
+                                                      (member['workerId']
+                                                          as String?) ??
+                                                      '';
+                                                  final memberName =
+                                                      (member['workerName']
+                                                          as String?) ??
+                                                      'Worker';
+                                                  return MapEntry(
+                                                    memberId,
+                                                    memberName,
+                                                  );
+                                                })
+                                                .where(
+                                                  (entry) =>
+                                                      entry.key.isNotEmpty,
+                                                )
+                                                .toList(growable: false);
+                                            return Container(
+                                              margin: const EdgeInsets.only(
+                                                top: 10,
+                                              ),
+                                              padding: const EdgeInsets.all(12),
+                                              decoration: BoxDecoration(
+                                                color: groupTileColor,
+                                                borderRadius:
+                                                    BorderRadius.circular(12),
+                                                border: Border.all(
+                                                  color: groupBorderColor,
+                                                ),
+                                              ),
+                                              child: Column(
+                                                crossAxisAlignment:
+                                                    CrossAxisAlignment.start,
                                                 children: [
-                                                  Expanded(
-                                                    child: Text(
-                                                      group.groupName,
-                                                      style: const TextStyle(
-                                                        fontSize: 16,
-                                                        fontWeight: FontWeight.bold,
+                                                  Row(
+                                                    children: [
+                                                      Expanded(
+                                                        child: Text(
+                                                          group.groupName,
+                                                          style:
+                                                              const TextStyle(
+                                                                fontSize: 16,
+                                                                fontWeight:
+                                                                    FontWeight
+                                                                        .bold,
+                                                              ),
+                                                        ),
                                                       ),
+                                                      Container(
+                                                        padding:
+                                                            const EdgeInsets.symmetric(
+                                                              horizontal: 8,
+                                                              vertical: 4,
+                                                            ),
+                                                        decoration: BoxDecoration(
+                                                          color: isCoordinator
+                                                              ? Colors.blue
+                                                                    .withValues(
+                                                                      alpha:
+                                                                          0.1,
+                                                                    )
+                                                              : Colors.green
+                                                                    .withValues(
+                                                                      alpha:
+                                                                          0.1,
+                                                                    ),
+                                                          borderRadius:
+                                                              BorderRadius.circular(
+                                                                999,
+                                                              ),
+                                                        ),
+                                                        child: Text(
+                                                          isCoordinator
+                                                              ? 'Coordinator'
+                                                              : 'Member',
+                                                          style: TextStyle(
+                                                            color: isCoordinator
+                                                                ? Colors.blue
+                                                                : Colors.green,
+                                                            fontWeight:
+                                                                FontWeight.bold,
+                                                            fontSize: 12,
+                                                          ),
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                  const SizedBox(height: 6),
+                                                  Text(
+                                                    'Members: ${group.memberIds.length}',
+                                                    style: const TextStyle(
+                                                      color: Colors.grey,
                                                     ),
                                                   ),
-                                                  Container(
-                                                    padding:
-                                                        const EdgeInsets.symmetric(
-                                                          horizontal: 8,
-                                                          vertical: 4,
-                                                        ),
-                                                    decoration: BoxDecoration(
-                                                      color: isCoordinator
-                                                          ? Colors.blue.withValues(
-                                                              alpha: 0.1,
-                                                            )
-                                                          : Colors.green.withValues(
-                                                              alpha: 0.1,
-                                                            ),
-                                                      borderRadius:
-                                                          BorderRadius.circular(999),
-                                                    ),
-                                                    child: Text(
-                                                      isCoordinator
-                                                          ? 'Coordinator'
-                                                          : 'Member',
-                                                      style: TextStyle(
-                                                        color: isCoordinator
-                                                            ? Colors.blue
-                                                            : Colors.green,
-                                                        fontWeight: FontWeight.bold,
-                                                        fontSize: 12,
-                                                      ),
-                                                    ),
-                                                  ),
-                                                ],
-                                              ),
-                                              const SizedBox(height: 6),
-                                              Text(
-                                                'Members: ${group.memberIds.length}',
-                                                style: const TextStyle(
-                                                  color: Colors.grey,
-                                                ),
-                                              ),
-                                              if (memberEntries.isNotEmpty) ...[
-                                                const SizedBox(height: 8),
-                                                Wrap(
-                                                  spacing: 8,
-                                                  runSpacing: 8,
-                                                  children: memberEntries.map((entry) {
-                                                    final isSelf =
-                                                        entry.key == currentWorkerId;
-                                                    return Container(
-                                                      padding:
-                                                          const EdgeInsets.symmetric(
-                                                            horizontal: 8,
-                                                            vertical: 6,
-                                                          ),
-                                                      decoration: BoxDecoration(
-                                                        color: Colors.blue.withValues(
-                                                          alpha: 0.08,
-                                                        ),
-                                                        borderRadius:
-                                                            BorderRadius.circular(999),
-                                                      ),
-                                                      child: Row(
-                                                        mainAxisSize:
-                                                            MainAxisSize.min,
-                                                        children: [
-                                                          Text(
-                                                            entry.value,
-                                                            style: const TextStyle(
-                                                              fontSize: 12,
-                                                            ),
-                                                          ),
-                                                          if (isCoordinator && !isSelf) ...[
-                                                            const SizedBox(width: 6),
-                                                            GestureDetector(
-                                                              onTap: () =>
-                                                                  _confirmRemoveMember(
-                                                                    group: group,
-                                                                    memberId: entry.key,
-                                                                    memberName:
-                                                                        entry.value,
+                                                  if (memberEntries
+                                                      .isNotEmpty) ...[
+                                                    const SizedBox(height: 8),
+                                                    Wrap(
+                                                      spacing: 8,
+                                                      runSpacing: 8,
+                                                      children: memberEntries
+                                                          .map((entry) {
+                                                            final isSelf =
+                                                                entry.key ==
+                                                                currentWorkerId;
+                                                            return Container(
+                                                              padding:
+                                                                  const EdgeInsets.symmetric(
+                                                                    horizontal:
+                                                                        8,
+                                                                    vertical: 6,
                                                                   ),
-                                                              child: const Icon(
-                                                                Icons.close,
-                                                                size: 16,
-                                                                color: Colors.red,
+                                                              decoration: BoxDecoration(
+                                                                color: Colors
+                                                                    .blue
+                                                                    .withValues(
+                                                                      alpha:
+                                                                          0.08,
+                                                                    ),
+                                                                borderRadius:
+                                                                    BorderRadius.circular(
+                                                                      999,
+                                                                    ),
                                                               ),
-                                                            ),
-                                                          ],
-                                                        ],
-                                                      ),
-                                                    );
-                                                  }).toList(growable: false),
-                                                ),
-                                              ],
-                                              const SizedBox(height: 8),
-                                              SizedBox(
-                                                width: double.infinity,
-                                                child: OutlinedButton.icon(
-                                                  onPressed: () =>
-                                                      _confirmExitGroup(group),
-                                                  icon: const Icon(Icons.exit_to_app),
-                                                  label: Text(
-                                                    isCoordinator
-                                                        ? 'Exit Group (Transfer Coordinator)'
-                                                        : 'Exit Group',
-                                                  ),
-                                                ),
-                                              ),
-                                              if (isCoordinator) ...[
-                                                const SizedBox(height: 8),
-                                                Row(
-                                                  children: [
-                                                    Expanded(
-                                                      child: OutlinedButton.icon(
-                                                        onPressed: () =>
-                                                            _showAddMemberDialog(group),
-                                                        icon:
-                                                            const Icon(Icons.person_add),
-                                                        label:
-                                                            const Text('Add Member'),
-                                                      ),
-                                                    ),
-                                                    const SizedBox(width: 8),
-                                                    Expanded(
-                                                      child: OutlinedButton.icon(
-                                                        onPressed: () =>
-                                                            _confirmDeleteGroup(group),
-                                                        style:
-                                                            OutlinedButton.styleFrom(
-                                                              foregroundColor:
-                                                                  Colors.red,
-                                                              side: const BorderSide(
-                                                                color: Colors.red,
+                                                              child: Row(
+                                                                mainAxisSize:
+                                                                    MainAxisSize
+                                                                        .min,
+                                                                children: [
+                                                                  Text(
+                                                                    entry.value,
+                                                                    style: const TextStyle(
+                                                                      fontSize:
+                                                                          12,
+                                                                    ),
+                                                                  ),
+                                                                  if (isCoordinator &&
+                                                                      !isSelf) ...[
+                                                                    const SizedBox(
+                                                                      width: 6,
+                                                                    ),
+                                                                    GestureDetector(
+                                                                      onTap: () => _confirmRemoveMember(
+                                                                        group:
+                                                                            group,
+                                                                        memberId:
+                                                                            entry.key,
+                                                                        memberName:
+                                                                            entry.value,
+                                                                      ),
+                                                                      child: const Icon(
+                                                                        Icons
+                                                                            .close,
+                                                                        size:
+                                                                            16,
+                                                                        color: Colors
+                                                                            .red,
+                                                                      ),
+                                                                    ),
+                                                                  ],
+                                                                ],
                                                               ),
-                                                            ),
-                                                        icon:
-                                                            const Icon(Icons.delete_outline),
-                                                        label:
-                                                            const Text('Delete Group'),
-                                                      ),
+                                                            );
+                                                          })
+                                                          .toList(
+                                                            growable: false,
+                                                          ),
                                                     ),
                                                   ],
-                                                ),
-                                              ],
-                                            ],
-                                          ),
-                                        );
-                                      }).toList(growable: false),
+                                                  const SizedBox(height: 8),
+                                                  SizedBox(
+                                                    width: double.infinity,
+                                                    child: OutlinedButton.icon(
+                                                      onPressed: () =>
+                                                          _confirmExitGroup(
+                                                            group,
+                                                          ),
+                                                      icon: const Icon(
+                                                        Icons.exit_to_app,
+                                                      ),
+                                                      label: Text(
+                                                        isCoordinator
+                                                            ? 'Exit Group (Transfer Coordinator)'
+                                                            : 'Exit Group',
+                                                      ),
+                                                    ),
+                                                  ),
+                                                  if (isCoordinator) ...[
+                                                    const SizedBox(height: 8),
+                                                    Row(
+                                                      children: [
+                                                        Expanded(
+                                                          child: OutlinedButton.icon(
+                                                            onPressed: () =>
+                                                                _showAddMemberDialog(
+                                                                  group,
+                                                                ),
+                                                            icon: const Icon(
+                                                              Icons.person_add,
+                                                            ),
+                                                            label: const Text(
+                                                              'Add Member',
+                                                            ),
+                                                          ),
+                                                        ),
+                                                        const SizedBox(
+                                                          width: 8,
+                                                        ),
+                                                        Expanded(
+                                                          child: OutlinedButton.icon(
+                                                            onPressed: () =>
+                                                                _confirmDeleteGroup(
+                                                                  group,
+                                                                ),
+                                                            style: OutlinedButton.styleFrom(
+                                                              foregroundColor:
+                                                                  Colors.red,
+                                                              side:
+                                                                  const BorderSide(
+                                                                    color: Colors
+                                                                        .red,
+                                                                  ),
+                                                            ),
+                                                            icon: const Icon(
+                                                              Icons
+                                                                  .delete_outline,
+                                                            ),
+                                                            label: const Text(
+                                                              'Delete Group',
+                                                            ),
+                                                          ),
+                                                        ),
+                                                      ],
+                                                    ),
+                                                  ],
+                                                ],
+                                              ),
+                                            );
+                                          })
+                                          .toList(growable: false),
                                     );
                                   },
                                 );
