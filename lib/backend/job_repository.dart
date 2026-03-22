@@ -336,6 +336,36 @@ class GroupJobApplicationRecord {
   }
 }
 
+/// Represents a conflict for a single group member when applying for a job
+class MemberConflict {
+  MemberConflict({
+    required this.memberId,
+    required this.memberName,
+    required this.conflictingJobTitle,
+    required this.conflictingStartDate,
+    required this.conflictingEndDate,
+  });
+
+  final String memberId;
+  final String memberName;
+  final String conflictingJobTitle;
+  final DateTime conflictingStartDate;
+  final DateTime conflictingEndDate;
+}
+
+/// Represents the result of checking group member conflicts
+class GroupConflictResult {
+  GroupConflictResult({
+    required this.hasConflicts,
+    required this.conflictingMembers,
+    required this.availableMembers,
+  });
+
+  final bool hasConflicts;
+  final List<MemberConflict> conflictingMembers;
+  final List<String> availableMembers; // IDs of members without conflicts
+}
+
 class JobRepository {
   JobRepository._();
 
@@ -678,6 +708,52 @@ class JobRepository {
           });
 
           return applications;
+        });
+  }
+
+  /// Streams group job schedules for a worker (including accepted group jobs)
+  static Stream<List<Map<String, dynamic>>> streamGroupJobSchedulesForWorker(
+    String workerId,
+  ) {
+    return _schedulesCollection
+        .where('workerId', isEqualTo: workerId)
+        .snapshots()
+        .map((snapshot) {
+          final schedules = snapshot.docs
+              .map((doc) {
+                final data = doc.data();
+                final status = (data['status'] as String?) ?? '';
+                final groupApplicationId =
+                    (data['groupApplicationId'] as String?) ?? '';
+
+                // Only include group schedules (groupApplicationId must not be empty)
+                // with accepted, in_progress, and completed status
+                if (groupApplicationId.isEmpty ||
+                    (status != 'accepted' &&
+                        status != 'in_progress' &&
+                        status != 'completed')) {
+                  return null;
+                }
+                return data;
+              })
+              .whereType<Map<String, dynamic>>()
+              .toList(growable: true);
+
+          schedules.sort((a, b) {
+            final aTime =
+                (a['createdAt'] as Timestamp?)
+                    ?.toDate()
+                    .millisecondsSinceEpoch ??
+                0;
+            final bTime =
+                (b['createdAt'] as Timestamp?)
+                    ?.toDate()
+                    .millisecondsSinceEpoch ??
+                0;
+            return bTime.compareTo(aTime);
+          });
+
+          return schedules;
         });
   }
 
@@ -2232,6 +2308,7 @@ class JobRepository {
     required JobRecord job,
     required String groupId,
     required String coordinatorId,
+    List<String>? overrideMemberIds,
   }) async {
     final groupRef = _workerGroupsCollection.doc(groupId);
     final groupSnapshot = await groupRef.get();
@@ -2245,16 +2322,32 @@ class JobRepository {
       throw StateError('Only the group coordinator can apply for a group.');
     }
 
-    final memberIds =
+    var memberIds =
         ((groupData['memberIds'] as List<dynamic>?) ?? const <dynamic>[])
             .map((id) => id.toString())
             .toList(growable: false);
-    final memberNames =
+    var memberNames =
         ((groupData['members'] as List<dynamic>?) ?? const <dynamic>[])
             .whereType<Map>()
             .map((member) => member['name']?.toString().trim() ?? '')
             .where((name) => name.isNotEmpty)
             .toList(growable: false);
+
+    // If overrideMemberIds is provided, filter to only those members
+    if (overrideMemberIds != null && overrideMemberIds.isNotEmpty) {
+      final filteredNames = <String>[];
+      final filteredIds = <String>[];
+      for (int i = 0; i < memberIds.length; i++) {
+        if (overrideMemberIds.contains(memberIds[i])) {
+          filteredIds.add(memberIds[i]);
+          if (i < memberNames.length) {
+            filteredNames.add(memberNames[i]);
+          }
+        }
+      }
+      memberIds = filteredIds;
+      memberNames = filteredNames;
+    }
 
     if (memberIds.isEmpty) {
       throw StateError('This group has no members.');
@@ -2647,5 +2740,416 @@ class JobRepository {
       print('Migration error: $error');
       rethrow;
     }
+  }
+
+  /// Gets available replacement workers for conflicted group members.
+  /// Returns workers who are free during the job period and might be able to join.
+  static Future<List<Map<String, dynamic>>> getAvailableReplacements({
+    required DateTime jobStartDate,
+    required int jobEstimatedDays,
+    required int requiredCount,
+  }) async {
+    final availableWorkers = <Map<String, dynamic>>[];
+
+    // Get all workers
+    final workersSnapshot = await _firestore
+        .collection('users')
+        .where('role', isEqualTo: 'worker')
+        .limit(50)
+        .get();
+
+    for (final workerDoc in workersSnapshot.docs) {
+      final workerId = workerDoc.id;
+      final workerData = workerDoc.data();
+      final workerName = (workerData['name'] as String?)?.trim() ?? 'Worker';
+
+      // Check if this worker has a conflict
+      final hasConflict = await _hasScheduleRangeConflict(
+        workerId: workerId,
+        startDate: jobStartDate,
+        estimatedDays: jobEstimatedDays,
+      );
+
+      if (!hasConflict) {
+        availableWorkers.add({'workerId': workerId, 'workerName': workerName});
+      }
+
+      if (availableWorkers.length >= requiredCount) {
+        break;
+      }
+    }
+
+    return availableWorkers;
+  }
+
+  /// Checks for conflicts when a group applies for a job and returns detailed conflict information.
+  /// This allows the coordinator to resolve conflicts by removing/replacing members.
+  static Future<GroupConflictResult> getGroupApplicationConflicts({
+    required List<String> memberIds,
+    required List<String> memberNames,
+    required DateTime jobStartDate,
+    required int jobEstimatedDays,
+  }) async {
+    if (memberIds.isEmpty) {
+      return GroupConflictResult(
+        hasConflicts: false,
+        conflictingMembers: const [],
+        availableMembers: const [],
+      );
+    }
+
+    final conflictingMembers = <MemberConflict>[];
+    final availableMembers = <String>[];
+
+    for (int i = 0; i < memberIds.length; i++) {
+      final memberId = memberIds[i];
+      final memberName = i < memberNames.length ? memberNames[i] : 'Worker';
+
+      // Check for conflicting accepted/in_progress schedules
+      final existingSchedules = await _schedulesCollection
+          .where('workerId', isEqualTo: memberId)
+          .get();
+
+      final selectedEndDate = _inclusiveEndDate(jobStartDate, jobEstimatedDays);
+      bool hasConflict = false;
+      String? conflictingJobTitle;
+      DateTime? conflictingStartDate;
+      DateTime? conflictingEndDate;
+
+      for (final doc in existingSchedules.docs) {
+        final data = doc.data();
+        final status = (data['status'] as String?) ?? '';
+        if (status != 'accepted' && status != 'in_progress') {
+          continue;
+        }
+
+        final existingStartDate =
+            (data['startDate'] as Timestamp?)?.toDate() ?? jobStartDate;
+        final existingEstimatedDays = ((data['estimatedDays'] as num?) ?? 1)
+            .toInt();
+        final existingEndDate = _inclusiveEndDate(
+          existingStartDate,
+          existingEstimatedDays,
+        );
+
+        final overlaps = _rangesOverlap(
+          firstStart: jobStartDate,
+          firstEnd: selectedEndDate,
+          secondStart: existingStartDate,
+          secondEnd: existingEndDate,
+        );
+
+        if (overlaps) {
+          hasConflict = true;
+          conflictingJobTitle = (data['jobTitle'] as String?) ?? 'Job';
+          conflictingStartDate = existingStartDate;
+          conflictingEndDate = existingEndDate;
+          break;
+        }
+      }
+
+      if (hasConflict) {
+        conflictingMembers.add(
+          MemberConflict(
+            memberId: memberId,
+            memberName: memberName,
+            conflictingJobTitle: conflictingJobTitle ?? 'Job',
+            conflictingStartDate: conflictingStartDate ?? jobStartDate,
+            conflictingEndDate: conflictingEndDate ?? selectedEndDate,
+          ),
+        );
+      } else {
+        availableMembers.add(memberId);
+      }
+    }
+
+    return GroupConflictResult(
+      hasConflicts: conflictingMembers.isNotEmpty,
+      conflictingMembers: conflictingMembers,
+      availableMembers: availableMembers,
+    );
+  }
+
+  /// Updates group application member list during conflict resolution.
+  /// Allows removing conflicted members and adding replacement workers.
+  static Future<void> updateGroupApplicationMembers({
+    required String groupApplicationId,
+    required String coordinatorId,
+    required List<String> memberIdsToRemove,
+    required List<String> memberIdsToAdd,
+  }) async {
+    final appRef = _groupApplicationsCollection.doc(groupApplicationId);
+    final appSnapshot = await appRef.get();
+    final appData = appSnapshot.data();
+
+    if (appData == null) {
+      throw StateError('Group application not found.');
+    }
+
+    if (appData['coordinatorId'] != coordinatorId) {
+      throw StateError('Only the group coordinator can modify member list.');
+    }
+
+    if (appData['status'] != 'submitted') {
+      throw StateError(
+        'Can only modify members while application is in submitted status.',
+      );
+    }
+
+    var memberIds =
+        ((appData['memberIds'] as List<dynamic>?) ?? const <dynamic>[])
+            .map((id) => id.toString())
+            .where((id) => id.isNotEmpty)
+            .toList(growable: true);
+    var memberNames =
+        ((appData['memberNames'] as List<dynamic>?) ?? const <dynamic>[])
+            .map((name) => name.toString())
+            .toList(growable: true);
+
+    // Remove specified members
+    for (final idToRemove in memberIdsToRemove) {
+      final index = memberIds.indexOf(idToRemove);
+      if (index >= 0) {
+        memberIds.removeAt(index);
+        if (index < memberNames.length) {
+          memberNames.removeAt(index);
+        }
+      }
+    }
+
+    // Add new members
+    for (final idToAdd in memberIdsToAdd) {
+      if (!memberIds.contains(idToAdd)) {
+        final workerSnapshot = await _firestore
+            .collection('users')
+            .doc(idToAdd)
+            .get();
+        final workerData = workerSnapshot.data();
+        if (workerData != null) {
+          memberIds.add(idToAdd);
+          final workerName =
+              (workerData['name'] as String?)?.trim() ?? 'Worker';
+          memberNames.add(workerName);
+        }
+      }
+    }
+
+    if (memberIds.isEmpty) {
+      throw StateError('Group must have at least one member.');
+    }
+
+    // Update the application with new member list
+    await appRef.update({
+      'memberIds': memberIds,
+      'memberNames': memberNames,
+      'memberCount': memberIds.length,
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  /// Accepts a group application with optional conflict resolution.
+  /// If memberIdsToAccept is provided, only those members will be scheduled (allowing skipping conflicted members).
+  static Future<void> acceptGroupApplicationWithConflictResolution({
+    required String coordinatorId,
+    required String groupApplicationId,
+    required List<String>? memberIdsToAccept,
+    required bool byLandowner,
+  }) async {
+    final appRef = _groupApplicationsCollection.doc(groupApplicationId);
+    final appSnapshot = await appRef.get();
+    final appData = appSnapshot.data();
+
+    if (appData == null) {
+      throw StateError('Group application not found.');
+    }
+
+    if (appData['status'] != 'approved') {
+      throw StateError('Only approved group applications can be accepted.');
+    }
+
+    if (byLandowner) {
+      if (appData['landownerId'] != coordinatorId) {
+        throw StateError('You can only accept applications for your own jobs.');
+      }
+    } else {
+      if (appData['coordinatorId'] != coordinatorId) {
+        throw StateError('Only the group coordinator can accept this offer.');
+      }
+    }
+
+    final decisionDeadline = (appData['decisionDeadline'] as Timestamp?)
+        ?.toDate();
+    if (_isExpiredDecision(decisionDeadline)) {
+      await appRef.update({
+        'status': 'expired',
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+      throw StateError(
+        'This group offer has expired. Ask the landowner to approve again.',
+      );
+    }
+
+    final jobId = (appData['jobId'] as String?) ?? '';
+    if (jobId.isEmpty) {
+      throw StateError('Job details missing for this group application.');
+    }
+
+    final jobSnapshot = await _jobsCollection.doc(jobId).get();
+    final jobData = jobSnapshot.data();
+    if (jobData == null) {
+      throw StateError('Job no longer exists.');
+    }
+
+    final startDate =
+        (jobData['startDate'] as Timestamp?)?.toDate() ?? DateTime.now();
+    final estimatedDays = ((jobData['estimatedDays'] as num?) ?? 1).toInt();
+    var memberIds =
+        ((appData['memberIds'] as List<dynamic>?) ?? const <dynamic>[])
+            .map((id) => id.toString())
+            .where((id) => id.isNotEmpty)
+            .toList(growable: true);
+
+    // Filter to only accepted members if memberIdsToAccept is provided
+    if (memberIdsToAccept != null && memberIdsToAccept.isNotEmpty) {
+      memberIds = memberIds
+          .where((id) => memberIdsToAccept.contains(id))
+          .toList(growable: false);
+
+      if (memberIds.isEmpty) {
+        throw StateError('No valid members to accept for this job.');
+      }
+    }
+
+    // Re-check conflicts for the final member list
+    for (final memberId in memberIds) {
+      final hasConflict = await _hasScheduleRangeConflict(
+        workerId: memberId,
+        startDate: startDate,
+        estimatedDays: estimatedDays,
+      );
+      if (hasConflict) {
+        throw StateError(
+          'Member still has a scheduling conflict. Member cannot be scheduled.',
+        );
+      }
+    }
+
+    final now = FieldValue.serverTimestamp();
+    final scheduleDateKey = _scheduleDateKey(startDate);
+    final batch = _firestore.batch();
+    final selectedEndDate = _inclusiveEndDate(startDate, estimatedDays);
+
+    final overlappingApprovedIndividualIds = <String>{};
+    final overlappingApprovedGroupIds = <String>{};
+
+    for (final memberId in memberIds) {
+      final approvedIndividualOffers = await _applicationsCollection
+          .where('workerId', isEqualTo: memberId)
+          .where('status', isEqualTo: 'approved')
+          .get();
+
+      for (final doc in approvedIndividualOffers.docs) {
+        final data = doc.data();
+        final offerStartDate =
+            (data['startDate'] as Timestamp?)?.toDate() ?? startDate;
+        final offerEstimatedDays = ((data['estimatedDays'] as num?) ?? 1)
+            .toInt();
+        final offerEndDate = _inclusiveEndDate(
+          offerStartDate,
+          offerEstimatedDays,
+        );
+
+        final overlaps = _rangesOverlap(
+          firstStart: startDate,
+          firstEnd: selectedEndDate,
+          secondStart: offerStartDate,
+          secondEnd: offerEndDate,
+        );
+
+        if (overlaps) {
+          overlappingApprovedIndividualIds.add(doc.id);
+        }
+      }
+
+      final approvedGroupOffers = await _groupApplicationsCollection
+          .where('memberIds', arrayContains: memberId)
+          .where('status', isEqualTo: 'approved')
+          .get();
+
+      for (final doc in approvedGroupOffers.docs) {
+        if (doc.id == groupApplicationId) {
+          continue;
+        }
+
+        final data = doc.data();
+        final offerStartDate =
+            (data['startDate'] as Timestamp?)?.toDate() ?? startDate;
+        final offerEstimatedDays = ((data['estimatedDays'] as num?) ?? 1)
+            .toInt();
+        final offerEndDate = _inclusiveEndDate(
+          offerStartDate,
+          offerEstimatedDays,
+        );
+
+        final overlaps = _rangesOverlap(
+          firstStart: startDate,
+          firstEnd: selectedEndDate,
+          secondStart: offerStartDate,
+          secondEnd: offerEndDate,
+        );
+
+        if (overlaps) {
+          overlappingApprovedGroupIds.add(doc.id);
+        }
+      }
+    }
+
+    // Update application status to 'accepted'
+    batch.update(appRef, {'status': 'accepted', 'updatedAt': now});
+
+    // Update the job status to 'accepted'
+    batch.update(_jobsCollection.doc(jobId), {
+      'status': 'accepted',
+      'updatedAt': now,
+    });
+
+    // Decline overlapping individual and group applications
+    for (final applicationId in overlappingApprovedIndividualIds) {
+      batch.update(_applicationsCollection.doc(applicationId), {
+        'status': 'declined_by_worker',
+        'updatedAt': now,
+      });
+    }
+
+    for (final otherGroupApplicationId in overlappingApprovedGroupIds) {
+      batch.update(_groupApplicationsCollection.doc(otherGroupApplicationId), {
+        'status': 'declined_by_group',
+        'updatedAt': now,
+      });
+    }
+
+    // Create schedules for the final member list
+    for (final memberId in memberIds) {
+      final scheduleRef = _schedulesCollection.doc();
+      batch.set(scheduleRef, {
+        'workerId': memberId,
+        'applicationId': null,
+        'groupApplicationId': groupApplicationId,
+        'groupId': appData['groupId'],
+        'groupName': appData['groupName'],
+        'jobId': jobId,
+        'jobTitle': appData['jobTitle'],
+        'landownerId': appData['landownerId'],
+        'landownerName': appData['landownerName'],
+        'startDate': Timestamp.fromDate(startDate),
+        'estimatedDays': estimatedDays,
+        'scheduleDateKey': scheduleDateKey,
+        'status': 'accepted',
+        'createdAt': now,
+        'updatedAt': now,
+      });
+    }
+
+    await batch.commit();
   }
 }

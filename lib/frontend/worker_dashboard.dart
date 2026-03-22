@@ -401,10 +401,205 @@ class _FindJobsPageState extends State<FindJobsPage> {
     });
 
     try {
+      // Check for member conflicts first
+      final conflictResult = await JobRepository.getGroupApplicationConflicts(
+        memberIds: group.memberIds,
+        memberNames: group.memberIds
+            .map(
+              (id) => group.members
+                  .firstWhere(
+                    (m) => m['workerId'] == id,
+                    orElse: () => {'workerName': 'Worker'},
+                  )['workerName']
+                  .toString(),
+            )
+            .toList(),
+        jobStartDate: job.startDate,
+        jobEstimatedDays: job.estimatedDays,
+      );
+
+      if (!mounted) {
+        return;
+      }
+
+      // If there are conflicts, show resolution dialog
+      if (conflictResult.hasConflicts) {
+        await _showGroupConflictResolutionDialog(
+          job: job,
+          group: group,
+          conflictResult: conflictResult,
+        );
+        return;
+      }
+
+      // No conflicts, proceed with normal submission
       await JobRepository.submitGroupApplication(
         job: job,
         groupId: group.id,
         coordinatorId: workerId,
+      );
+
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Group "${group.groupName}" applied successfully!'),
+        ),
+      );
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(_readableError(error))));
+    } finally {
+      if (mounted) {
+        setState(() {
+          _submittingJobId = null;
+        });
+      }
+    }
+  }
+
+  Future<void> _showGroupConflictResolutionDialog({
+    required JobRecord job,
+    required WorkerGroupRecord group,
+    required GroupConflictResult conflictResult,
+  }) async {
+    final workerId = AuthService.currentUserId;
+    if (workerId == null) {
+      return;
+    }
+
+    var selectedMemberIds = Set<String>.from(conflictResult.availableMembers);
+
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              title: const Text('Member Scheduling Conflicts'),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Some members have scheduling conflicts:',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 12),
+                    ...conflictResult.conflictingMembers.map(
+                      (conflict) => Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              '${conflict.memberName} - Conflict:',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                color: Colors.red,
+                              ),
+                            ),
+                            Padding(
+                              padding: const EdgeInsets.only(left: 12),
+                              child: Text(
+                                '${conflict.conflictingJobTitle}\n'
+                                '${conflict.conflictingStartDate.toString().split(' ')[0]} - '
+                                '${conflict.conflictingEndDate.toString().split(' ')[0]}',
+                                style: const TextStyle(fontSize: 12),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    const Text(
+                      'Members who can be scheduled:',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 8),
+                    ...conflictResult.availableMembers.map((memberId) {
+                      final memberName = group.members
+                          .firstWhere(
+                            (m) => m['workerId'] == memberId,
+                            orElse: () => {'workerName': 'Worker'},
+                          )['workerName']
+                          .toString();
+                      return CheckboxListTile(
+                        value: selectedMemberIds.contains(memberId),
+                        onChanged: (value) {
+                          setState(() {
+                            if (value == true) {
+                              selectedMemberIds.add(memberId);
+                            } else {
+                              selectedMemberIds.remove(memberId);
+                            }
+                          });
+                        },
+                        title: Text(memberName),
+                        dense: true,
+                      );
+                    }),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    Navigator.of(dialogContext).pop();
+                  },
+                  child: const Text('Cancel'),
+                ),
+                ElevatedButton(
+                  onPressed: selectedMemberIds.isEmpty
+                      ? null
+                      : () {
+                          Navigator.of(dialogContext).pop();
+                          _submitGroupApplicationWithSelectedMembers(
+                            job: job,
+                            group: group,
+                            selectedMemberIds: selectedMemberIds.toList(),
+                          );
+                        },
+                  child: const Text('Apply With Selected Members'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Future<void> _submitGroupApplicationWithSelectedMembers({
+    required JobRecord job,
+    required WorkerGroupRecord group,
+    required List<String> selectedMemberIds,
+  }) async {
+    final workerId = AuthService.currentUserId;
+    if (workerId == null) {
+      return;
+    }
+
+    setState(() {
+      _submittingJobId = job.id;
+    });
+
+    try {
+      // Submit with selected members only
+      await JobRepository.submitGroupApplication(
+        job: job,
+        groupId: group.id,
+        coordinatorId: workerId,
+        overrideMemberIds: selectedMemberIds,
       );
 
       if (!mounted) {
@@ -957,14 +1152,49 @@ class _ApprovedJobsPageState extends State<ApprovedJobsPage> {
     return _jobColors[jobIndex % _jobColors.length];
   }
 
+  // Helper to compare dates ignoring time component
+  bool _dateIsBetweenInclusive(
+    DateTime day,
+    DateTime startDate,
+    DateTime endDate,
+  ) {
+    final dayOnly = DateTime(day.year, day.month, day.day);
+    final startOnly = DateTime(startDate.year, startDate.month, startDate.day);
+    final endOnly = DateTime(endDate.year, endDate.month, endDate.day);
+    return !dayOnly.isBefore(startOnly) && !dayOnly.isAfter(endOnly);
+  }
+
   bool _hasJobOnDate(DateTime day, List<WorkerApplicationRecord> jobs) {
     return jobs.any((job) {
       final endDate = _jobEndDate(job);
-      return !day.isBefore(job.startDate) &&
-          !day.isAfter(endDate) &&
+      return _dateIsBetweenInclusive(day, job.startDate, endDate) &&
           (job.status == 'accepted' ||
               job.status == 'in_progress' ||
               job.status == 'completed');
+    });
+  }
+
+  bool _hasJobOrGroupScheduleOnDate(
+    DateTime day,
+    List<WorkerApplicationRecord> jobs,
+    List<Map<String, dynamic>> groupSchedules,
+  ) {
+    // Check individual jobs
+    final hasIndividualJob = _hasJobOnDate(day, jobs);
+    if (hasIndividualJob) return true;
+
+    // Check group schedules
+    return groupSchedules.any((schedule) {
+      final startDate =
+          (schedule['startDate'] as Timestamp?)?.toDate() ?? DateTime.now();
+      final estimatedDays = ((schedule['estimatedDays'] as num?) ?? 1).toInt();
+      final inclusiveDays = estimatedDays > 0 ? estimatedDays - 1 : 0;
+      final endDate = startDate.add(Duration(days: inclusiveDays));
+      final status = (schedule['status'] as String?) ?? '';
+      return _dateIsBetweenInclusive(day, startDate, endDate) &&
+          (status == 'accepted' ||
+              status == 'in_progress' ||
+              status == 'completed');
     });
   }
 
@@ -974,15 +1204,35 @@ class _ApprovedJobsPageState extends State<ApprovedJobsPage> {
   ) {
     return jobs.where((job) {
       final endDate = _jobEndDate(job);
-      return !day.isBefore(job.startDate) &&
-          !day.isAfter(endDate) &&
+      return _dateIsBetweenInclusive(day, job.startDate, endDate) &&
           (job.status == 'accepted' ||
               job.status == 'in_progress' ||
               job.status == 'completed');
     }).toList();
   }
 
-  Widget _buildJobCalendar(List<WorkerApplicationRecord> jobs) {
+  List<Map<String, dynamic>> _getGroupSchedulesForDate(
+    DateTime day,
+    List<Map<String, dynamic>> groupSchedules,
+  ) {
+    return groupSchedules.where((schedule) {
+      final startDate =
+          (schedule['startDate'] as Timestamp?)?.toDate() ?? DateTime.now();
+      final estimatedDays = ((schedule['estimatedDays'] as num?) ?? 1).toInt();
+      final inclusiveDays = estimatedDays > 0 ? estimatedDays - 1 : 0;
+      final endDate = startDate.add(Duration(days: inclusiveDays));
+      final status = (schedule['status'] as String?) ?? '';
+      return _dateIsBetweenInclusive(day, startDate, endDate) &&
+          (status == 'accepted' ||
+              status == 'in_progress' ||
+              status == 'completed');
+    }).toList();
+  }
+
+  Widget _buildJobCalendar(
+    List<WorkerApplicationRecord> jobs,
+    List<Map<String, dynamic>> groupSchedules,
+  ) {
     return Container(
       padding: const EdgeInsets.all(16),
       child: Column(
@@ -1009,25 +1259,48 @@ class _ApprovedJobsPageState extends State<ApprovedJobsPage> {
             },
             calendarBuilders: CalendarBuilders(
               markerBuilder: (context, date, events) {
-                if (_hasJobOnDate(date, jobs)) {
+                if (_hasJobOrGroupScheduleOnDate(date, jobs, groupSchedules)) {
                   final jobsOnDate = _getJobsForDate(date, jobs);
+                  final groupSchedulesOnDate = _getGroupSchedulesForDate(
+                    date,
+                    groupSchedules,
+                  );
+
                   return Positioned(
                     bottom: 1,
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
-                      children: jobsOnDate.asMap().entries.map((entry) {
-                        final index = entry.key;
-                        final color = _getJobColor(entry.value.jobId, index);
-                        return Container(
-                          margin: const EdgeInsets.symmetric(horizontal: 1),
-                          width: 6,
-                          height: 6,
-                          decoration: BoxDecoration(
-                            color: color,
-                            shape: BoxShape.circle,
-                          ),
-                        );
-                      }).toList(),
+                      children: [
+                        ...jobsOnDate.asMap().entries.map((entry) {
+                          final index = entry.key;
+                          final color = _getJobColor(entry.value.jobId, index);
+                          return Container(
+                            margin: const EdgeInsets.symmetric(horizontal: 1),
+                            width: 6,
+                            height: 6,
+                            decoration: BoxDecoration(
+                              color: color,
+                              shape: BoxShape.circle,
+                            ),
+                          );
+                        }),
+                        ...groupSchedulesOnDate.asMap().entries.map((entry) {
+                          final index = entry.key + jobsOnDate.length;
+                          final jobId =
+                              (entry.value['jobId'] as String?) ??
+                              'group-${entry.value.hashCode}';
+                          final color = _getJobColor(jobId, index);
+                          return Container(
+                            margin: const EdgeInsets.symmetric(horizontal: 1),
+                            width: 6,
+                            height: 6,
+                            decoration: BoxDecoration(
+                              color: color,
+                              shape: BoxShape.circle,
+                            ),
+                          );
+                        }),
+                      ],
                     ),
                   );
                 }
@@ -1075,36 +1348,76 @@ class _ApprovedJobsPageState extends State<ApprovedJobsPage> {
                   const SizedBox(height: 8),
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
-                    children: _getJobsForDate(_selectedDay!, jobs)
-                        .asMap()
-                        .entries
-                        .map((entry) {
-                          final job = entry.value;
-                          final color = _getJobColor(job.jobId, entry.key);
-                          return Padding(
-                            padding: const EdgeInsets.only(bottom: 8),
-                            child: Row(
-                              children: [
-                                Container(
-                                  width: 12,
-                                  height: 12,
-                                  decoration: BoxDecoration(
-                                    color: color,
-                                    shape: BoxShape.circle,
-                                  ),
+                    children: [
+                      ..._getJobsForDate(
+                        _selectedDay!,
+                        jobs,
+                      ).asMap().entries.map((entry) {
+                        final job = entry.value;
+                        final color = _getJobColor(job.jobId, entry.key);
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 8),
+                          child: Row(
+                            children: [
+                              Container(
+                                width: 12,
+                                height: 12,
+                                decoration: BoxDecoration(
+                                  color: color,
+                                  shape: BoxShape.circle,
                                 ),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: Text(
-                                    job.jobTitle,
-                                    style: const TextStyle(fontSize: 13),
-                                  ),
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  job.jobTitle,
+                                  style: const TextStyle(fontSize: 13),
                                 ),
-                              ],
-                            ),
-                          );
-                        })
-                        .toList(),
+                              ),
+                            ],
+                          ),
+                        );
+                      }),
+                      ..._getGroupSchedulesForDate(
+                        _selectedDay!,
+                        groupSchedules,
+                      ).asMap().entries.map((entry) {
+                        final schedule = entry.value;
+                        final index =
+                            entry.key +
+                            _getJobsForDate(_selectedDay!, jobs).length;
+                        final jobId =
+                            (schedule['jobId'] as String?) ??
+                            'group-${schedule.hashCode}';
+                        final color = _getJobColor(jobId, index);
+                        final jobTitle =
+                            (schedule['jobTitle'] as String?) ?? 'Group Job';
+                        final groupName =
+                            (schedule['groupName'] as String?) ?? 'Group';
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 8),
+                          child: Row(
+                            children: [
+                              Container(
+                                width: 12,
+                                height: 12,
+                                decoration: BoxDecoration(
+                                  color: color,
+                                  shape: BoxShape.circle,
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  '$jobTitle ($groupName)',
+                                  style: const TextStyle(fontSize: 13),
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      }),
+                    ],
                   ),
                 ],
               ),
@@ -1242,6 +1555,57 @@ class _ApprovedJobsPageState extends State<ApprovedJobsPage> {
     });
 
     try {
+      // First, fetch the group application to check for conflicts
+      final appSnapshot = await FirebaseFirestore.instance
+          .collection('group_applications')
+          .doc(groupApplicationId)
+          .get();
+      final appData = appSnapshot.data();
+
+      if (appData == null) {
+        throw StateError('Group application not found.');
+      }
+
+      final memberIds =
+          ((appData['memberIds'] as List<dynamic>?) ?? const <dynamic>[])
+              .map((id) => id.toString())
+              .toList();
+      final memberNames =
+          ((appData['memberNames'] as List<dynamic>?) ?? const <dynamic>[])
+              .map((name) => name.toString())
+              .toList();
+      final jobStartDate =
+          (appData['startDate'] as Timestamp?)?.toDate() ?? DateTime.now();
+      final estimatedDays = ((appData['estimatedDays'] as num?) ?? 1).toInt();
+
+      // Check for conflicts
+      final conflictResult = await JobRepository.getGroupApplicationConflicts(
+        memberIds: memberIds,
+        memberNames: memberNames,
+        jobStartDate: jobStartDate,
+        jobEstimatedDays: estimatedDays,
+      );
+
+      if (!mounted) {
+        return;
+      }
+
+      // If there are conflicts, show resolution dialog
+      if (conflictResult.hasConflicts) {
+        setState(() {
+          _actionApplicationId = null;
+        });
+
+        await _showGroupAcceptanceConflictDialog(
+          workerId: workerId,
+          groupApplicationId: groupApplicationId,
+          conflictResult: conflictResult,
+          appData: appData,
+        );
+        return;
+      }
+
+      // No conflicts, proceed with normal acceptance
       await JobRepository.acceptGroupApplicationByCoordinator(
         coordinatorId: workerId,
         groupApplicationId: groupApplicationId,
@@ -1255,6 +1619,171 @@ class _ApprovedJobsPageState extends State<ApprovedJobsPage> {
         const SnackBar(
           content: Text(
             'Group offer accepted. Schedules created and overlapping approved offers for members were declined.',
+          ),
+        ),
+      );
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(_readableError(error))));
+    } finally {
+      if (mounted) {
+        setState(() {
+          _actionApplicationId = null;
+        });
+      }
+    }
+  }
+
+  Future<void> _showGroupAcceptanceConflictDialog({
+    required String workerId,
+    required String groupApplicationId,
+    required GroupConflictResult conflictResult,
+    required Map<String, dynamic> appData,
+  }) async {
+    var selectedMemberIds = Set<String>.from(conflictResult.availableMembers);
+
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              title: const Text('Conflicting Members Detected'),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'The following members have scheduling conflicts and cannot be scheduled:',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 12),
+                    ...conflictResult.conflictingMembers.map(
+                      (conflict) => Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              '${conflict.memberName} - Conflict:',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                color: Colors.red,
+                              ),
+                            ),
+                            Padding(
+                              padding: const EdgeInsets.only(left: 12),
+                              child: Text(
+                                '${conflict.conflictingJobTitle}\n'
+                                '${conflict.conflictingStartDate.toString().split(' ')[0]} - '
+                                '${conflict.conflictingEndDate.toString().split(' ')[0]}',
+                                style: const TextStyle(fontSize: 12),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    const Text(
+                      'Members who can be scheduled:',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 8),
+                    ...conflictResult.availableMembers.map((memberId) {
+                      final memberNames =
+                          ((appData['memberNames'] as List<dynamic>?) ??
+                                  const <dynamic>[])
+                              .map((name) => name.toString())
+                              .toList();
+                      final memberIds =
+                          ((appData['memberIds'] as List<dynamic>?) ??
+                                  const <dynamic>[])
+                              .map((id) => id.toString())
+                              .toList();
+                      final memberIndex = memberIds.indexOf(memberId);
+                      final memberName =
+                          memberIndex >= 0 && memberIndex < memberNames.length
+                          ? memberNames[memberIndex]
+                          : 'Worker';
+                      return CheckboxListTile(
+                        value: selectedMemberIds.contains(memberId),
+                        onChanged: (value) {
+                          setState(() {
+                            if (value == true) {
+                              selectedMemberIds.add(memberId);
+                            } else {
+                              selectedMemberIds.remove(memberId);
+                            }
+                          });
+                        },
+                        title: Text(memberName),
+                        dense: true,
+                      );
+                    }),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    Navigator.of(dialogContext).pop();
+                  },
+                  child: const Text('Cancel'),
+                ),
+                ElevatedButton(
+                  onPressed: selectedMemberIds.isEmpty
+                      ? null
+                      : () {
+                          Navigator.of(dialogContext).pop();
+                          _acceptGroupWithSelectedMembers(
+                            workerId: workerId,
+                            groupApplicationId: groupApplicationId,
+                            memberIdsToAccept: selectedMemberIds.toList(),
+                          );
+                        },
+                  child: const Text('Accept With Selected Members'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Future<void> _acceptGroupWithSelectedMembers({
+    required String workerId,
+    required String groupApplicationId,
+    required List<String> memberIdsToAccept,
+  }) async {
+    setState(() {
+      _actionApplicationId = groupApplicationId;
+    });
+
+    try {
+      // Accept with only the selected members
+      await JobRepository.acceptGroupApplicationWithConflictResolution(
+        coordinatorId: workerId,
+        groupApplicationId: groupApplicationId,
+        memberIdsToAccept: memberIdsToAccept,
+        byLandowner: false,
+      );
+
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Group offer accepted with selected members. Schedules created.',
           ),
         ),
       );
@@ -2238,543 +2767,541 @@ class _ApprovedJobsPageState extends State<ApprovedJobsPage> {
                                   groupSnapshot.data ??
                                   const <GroupJobApplicationRecord>[];
 
-                              if (approvedJobs.isEmpty &&
-                                  groupApplications.isEmpty) {
-                                return const Center(
-                                  child: Text(
-                                    'No approved jobs yet',
-                                    style: TextStyle(
-                                      fontSize: 18,
-                                      color: Colors.grey,
+                              // Fetch group job schedules for calendar
+                              return StreamBuilder<List<Map<String, dynamic>>>(
+                                stream:
+                                    JobRepository.streamGroupJobSchedulesForWorker(
+                                      workerId,
                                     ),
-                                  ),
-                                );
-                              }
+                                builder: (context, groupSchedulesSnapshot) {
+                                  final groupSchedules =
+                                      groupSchedulesSnapshot.data ??
+                                      const <Map<String, dynamic>>[];
 
-                              final individualCards = approvedJobs
-                                  .map((job) {
-                                    final isBusy =
-                                        _actionApplicationId == job.id;
-                                    final statusColor = _statusColor(
-                                      job.status,
-                                    );
-                                    return Card(
-                                      elevation: 4,
-                                      margin: const EdgeInsets.only(bottom: 16),
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(16),
-                                      ),
-                                      child: Padding(
-                                        padding: const EdgeInsets.all(16),
-                                        child: Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
-                                          children: [
-                                            Row(
-                                              children: [
-                                                const Icon(
-                                                  Icons.check_circle,
-                                                  color: Colors.green,
-                                                ),
-                                                const SizedBox(width: 8),
-                                                Expanded(
-                                                  child: Text(
-                                                    job.jobTitle,
-                                                    style: const TextStyle(
-                                                      fontSize: 18,
-                                                      fontWeight:
-                                                          FontWeight.bold,
-                                                    ),
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                            const SizedBox(height: 8),
-                                            Row(
-                                              children: [
-                                                const Icon(
-                                                  Icons.location_on,
-                                                  size: 16,
-                                                  color: Colors.grey,
-                                                ),
-                                                const SizedBox(width: 4),
-                                                Expanded(
-                                                  child: Text(job.location),
-                                                ),
-                                                const SizedBox(width: 16),
-                                                const Icon(
-                                                  Icons.payments,
-                                                  size: 16,
-                                                  color: Colors.grey,
-                                                ),
-                                                const SizedBox(width: 4),
-                                                Text(
-                                                  'LKR ${job.paymentRate.toStringAsFixed(0)}',
-                                                ),
-                                              ],
-                                            ),
-                                            const SizedBox(height: 8),
-                                            Text(
-                                              'Start Date: ${_formatDate(job.startDate)}',
-                                              style: const TextStyle(
-                                                fontSize: 14,
-                                                color: Colors.blue,
-                                              ),
-                                            ),
-                                            const SizedBox(height: 4),
-                                            Text(
-                                              'Estimated End Date: ${_formatDate(_jobEndDate(job))}',
-                                              style: const TextStyle(
-                                                fontSize: 13,
-                                                color: Colors.blueGrey,
-                                              ),
-                                            ),
-                                            const SizedBox(height: 4),
-                                            Text(
-                                              'Landowner: ${job.landownerName}',
-                                              style: const TextStyle(
-                                                fontSize: 13,
-                                                color: Colors.grey,
-                                              ),
-                                            ),
-                                            if (job.status == 'approved') ...[
-                                              const SizedBox(height: 4),
-                                              Text(
-                                                _decisionWindowLabel(
-                                                  job.decisionDeadline,
-                                                ),
-                                                style: const TextStyle(
-                                                  fontSize: 13,
-                                                  color: Colors.deepOrange,
-                                                ),
-                                              ),
-                                            ],
-                                            const SizedBox(height: 8),
-                                            Container(
-                                              padding:
-                                                  const EdgeInsets.symmetric(
-                                                    horizontal: 8,
-                                                    vertical: 4,
-                                                  ),
-                                              decoration: BoxDecoration(
-                                                color: statusColor.withValues(
-                                                  alpha: 0.1,
-                                                ),
-                                                borderRadius:
-                                                    BorderRadius.circular(12),
-                                              ),
-                                              child: Text(
-                                                _applicationStatusLabel(
-                                                  job.status,
-                                                ),
-                                                style: TextStyle(
-                                                  color: statusColor,
-                                                  fontWeight: FontWeight.bold,
-                                                ),
-                                              ),
-                                            ),
-                                            if (job.status == 'approved') ...[
-                                              const SizedBox(height: 12),
-                                              Row(
-                                                children: [
-                                                  Expanded(
-                                                    child: OutlinedButton(
-                                                      onPressed: isBusy
-                                                          ? null
-                                                          : () => _declineOffer(
-                                                              workerId:
-                                                                  workerId,
-                                                              applicationId:
-                                                                  job.id,
-                                                            ),
-                                                      style:
-                                                          OutlinedButton.styleFrom(
-                                                            foregroundColor:
-                                                                Colors.red,
-                                                          ),
-                                                      child: const Text(
-                                                        'Decline',
-                                                      ),
-                                                    ),
-                                                  ),
-                                                  const SizedBox(width: 12),
-                                                  Expanded(
-                                                    child: ElevatedButton(
-                                                      onPressed: isBusy
-                                                          ? null
-                                                          : () => _acceptOffer(
-                                                              workerId:
-                                                                  workerId,
-                                                              applicationId:
-                                                                  job.id,
-                                                            ),
-                                                      style:
-                                                          ElevatedButton.styleFrom(
-                                                            backgroundColor:
-                                                                Colors.green,
-                                                          ),
-                                                      child: isBusy
-                                                          ? const SizedBox(
-                                                              height: 18,
-                                                              width: 18,
-                                                              child:
-                                                                  CircularProgressIndicator(
-                                                                    strokeWidth:
-                                                                        2,
-                                                                    color: Colors
-                                                                        .white,
-                                                                  ),
-                                                            )
-                                                          : const Text(
-                                                              'Accept',
-                                                            ),
-                                                    ),
-                                                  ),
-                                                ],
-                                              ),
-                                            ],
-                                            if (job.status == 'accepted' ||
-                                                job.status ==
-                                                    'in_progress') ...[
-                                              const SizedBox(height: 12),
-                                              SizedBox(
-                                                width: double.infinity,
-                                                child: ElevatedButton.icon(
-                                                  onPressed: () =>
-                                                      _showProgressDialog(
-                                                        workerId: workerId,
-                                                        job: job,
-                                                      ),
-                                                  icon: const Icon(
-                                                    Icons.edit_note,
-                                                  ),
-                                                  label: const Text(
-                                                    'Record Daily Progress',
-                                                  ),
-                                                  style:
-                                                      ElevatedButton.styleFrom(
-                                                        backgroundColor:
-                                                            Colors.blue,
-                                                      ),
-                                                ),
-                                              ),
-                                              const SizedBox(height: 10),
-                                              SizedBox(
-                                                width: double.infinity,
-                                                child: OutlinedButton.icon(
-                                                  onPressed: isBusy
-                                                      ? null
-                                                      : () => _markCompleted(
-                                                          workerId: workerId,
-                                                          applicationId: job.id,
-                                                        ),
-                                                  icon: const Icon(
-                                                    Icons.check_circle_outline,
-                                                  ),
-                                                  label: isBusy
-                                                      ? const Text(
-                                                          'Updating...',
-                                                        )
-                                                      : const Text(
-                                                          'Mark Job Completed',
-                                                        ),
-                                                ),
-                                              ),
-                                            ],
-                                            if (job.status == 'completed') ...[
-                                              const SizedBox(height: 12),
-                                              FutureBuilder<bool>(
-                                                future: _checkIfJobRated(
-                                                  workerId: workerId,
-                                                  applicationId: job.id,
-                                                ),
-                                                builder: (context, snapshot) {
-                                                  final alreadyRated =
-                                                      snapshot.data ?? false;
-                                                  return SizedBox(
-                                                    width: double.infinity,
-                                                    child: Tooltip(
-                                                      message: alreadyRated
-                                                          ? 'You have already rated this landowner for this job'
-                                                          : '',
-                                                      child: OutlinedButton.icon(
-                                                        onPressed: alreadyRated
-                                                            ? null
-                                                            : () => _showRatingDialog(
-                                                                workerId:
-                                                                    workerId,
-                                                                applicationId:
-                                                                    job.id,
-                                                              ),
-                                                        icon: const Icon(
-                                                          Icons.star_outline,
-                                                        ),
-                                                        label: Text(
-                                                          alreadyRated
-                                                              ? 'Rating Submitted'
-                                                              : 'Rate Landowner',
-                                                        ),
-                                                      ),
-                                                    ),
-                                                  );
-                                                },
-                                              ),
-                                            ],
-                                            if (job.status == 'accepted' ||
-                                                job.status == 'in_progress' ||
-                                                job.status == 'completed') ...[
-                                              const SizedBox(height: 12),
-                                              const Text(
-                                                'Recent Daily Progress',
-                                                style: TextStyle(
-                                                  fontWeight: FontWeight.bold,
-                                                  fontSize: 14,
-                                                ),
-                                              ),
-                                              _buildProgressHistory(job.id),
-                                            ],
-                                          ],
+                                  if (approvedJobs.isEmpty &&
+                                      groupApplications.isEmpty &&
+                                      groupSchedules.isEmpty) {
+                                    return const Center(
+                                      child: Text(
+                                        'No approved jobs yet',
+                                        style: TextStyle(
+                                          fontSize: 18,
+                                          color: Colors.grey,
                                         ),
                                       ),
                                     );
-                                  })
-                                  .toList(growable: false);
+                                  }
 
-                              final groupCards = groupApplications
-                                  .map((application) {
-                                    final statusColor = _statusColor(
-                                      application.status,
-                                    );
-                                    final isCoordinator =
-                                        application.coordinatorId == workerId;
-                                    final isBusy =
-                                        _actionApplicationId == application.id;
-                                    return Card(
-                                      elevation: 4,
-                                      margin: const EdgeInsets.only(bottom: 16),
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(16),
-                                      ),
-                                      child: Padding(
-                                        padding: const EdgeInsets.all(16),
-                                        child: Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
-                                          children: [
-                                            Row(
+                                  final individualCards = approvedJobs
+                                      .map((job) {
+                                        final isBusy =
+                                            _actionApplicationId == job.id;
+                                        final statusColor = _statusColor(
+                                          job.status,
+                                        );
+                                        return Card(
+                                          elevation: 4,
+                                          margin: const EdgeInsets.only(
+                                            bottom: 16,
+                                          ),
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius: BorderRadius.circular(
+                                              16,
+                                            ),
+                                          ),
+                                          child: Padding(
+                                            padding: const EdgeInsets.all(16),
+                                            child: Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
                                               children: [
-                                                const Icon(
-                                                  Icons.groups,
-                                                  color: Colors.brown,
+                                                Row(
+                                                  children: [
+                                                    const Icon(
+                                                      Icons.check_circle,
+                                                      color: Colors.green,
+                                                    ),
+                                                    const SizedBox(width: 8),
+                                                    Expanded(
+                                                      child: Text(
+                                                        job.jobTitle,
+                                                        style: const TextStyle(
+                                                          fontSize: 18,
+                                                          fontWeight:
+                                                              FontWeight.bold,
+                                                        ),
+                                                      ),
+                                                    ),
+                                                  ],
                                                 ),
-                                                const SizedBox(width: 8),
-                                                Expanded(
-                                                  child: Text(
-                                                    application.jobTitle,
+                                                const SizedBox(height: 8),
+                                                Row(
+                                                  children: [
+                                                    const Icon(
+                                                      Icons.location_on,
+                                                      size: 16,
+                                                      color: Colors.grey,
+                                                    ),
+                                                    const SizedBox(width: 4),
+                                                    Expanded(
+                                                      child: Text(job.location),
+                                                    ),
+                                                    const SizedBox(width: 16),
+                                                    const Icon(
+                                                      Icons.payments,
+                                                      size: 16,
+                                                      color: Colors.grey,
+                                                    ),
+                                                    const SizedBox(width: 4),
+                                                    Text(
+                                                      'LKR ${job.paymentRate.toStringAsFixed(0)}',
+                                                    ),
+                                                  ],
+                                                ),
+                                                const SizedBox(height: 8),
+                                                Text(
+                                                  'Start Date: ${_formatDate(job.startDate)}',
+                                                  style: const TextStyle(
+                                                    fontSize: 14,
+                                                    color: Colors.blue,
+                                                  ),
+                                                ),
+                                                const SizedBox(height: 4),
+                                                Text(
+                                                  'Estimated End Date: ${_formatDate(_jobEndDate(job))}',
+                                                  style: const TextStyle(
+                                                    fontSize: 13,
+                                                    color: Colors.blueGrey,
+                                                  ),
+                                                ),
+                                                const SizedBox(height: 4),
+                                                Text(
+                                                  'Landowner: ${job.landownerName}',
+                                                  style: const TextStyle(
+                                                    fontSize: 13,
+                                                    color: Colors.grey,
+                                                  ),
+                                                ),
+                                                if (job.status ==
+                                                    'approved') ...[
+                                                  const SizedBox(height: 4),
+                                                  Text(
+                                                    _decisionWindowLabel(
+                                                      job.decisionDeadline,
+                                                    ),
                                                     style: const TextStyle(
-                                                      fontSize: 17,
+                                                      fontSize: 13,
+                                                      color: Colors.deepOrange,
+                                                    ),
+                                                  ),
+                                                ],
+                                                const SizedBox(height: 8),
+                                                Container(
+                                                  padding:
+                                                      const EdgeInsets.symmetric(
+                                                        horizontal: 8,
+                                                        vertical: 4,
+                                                      ),
+                                                  decoration: BoxDecoration(
+                                                    color: statusColor
+                                                        .withValues(alpha: 0.1),
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                          12,
+                                                        ),
+                                                  ),
+                                                  child: Text(
+                                                    _applicationStatusLabel(
+                                                      job.status,
+                                                    ),
+                                                    style: TextStyle(
+                                                      color: statusColor,
                                                       fontWeight:
                                                           FontWeight.bold,
                                                     ),
                                                   ),
                                                 ),
-                                              ],
-                                            ),
-                                            const SizedBox(height: 8),
-                                            Text(
-                                              'Group: ${application.groupName}',
-                                              style: const TextStyle(
-                                                fontWeight: FontWeight.w600,
-                                              ),
-                                            ),
-                                            const SizedBox(height: 4),
-                                            Text(
-                                              'Landowner: ${application.landownerName}',
-                                              style: const TextStyle(
-                                                color: Colors.grey,
-                                              ),
-                                            ),
-                                            const SizedBox(height: 4),
-                                            Text(
-                                              'Members: ${application.memberIds.length}',
-                                              style: const TextStyle(
-                                                color: Colors.grey,
-                                              ),
-                                            ),
-                                            const SizedBox(height: 10),
-                                            Container(
-                                              padding:
-                                                  const EdgeInsets.symmetric(
-                                                    horizontal: 8,
-                                                    vertical: 4,
-                                                  ),
-                                              decoration: BoxDecoration(
-                                                color: statusColor.withValues(
-                                                  alpha: 0.1,
-                                                ),
-                                                borderRadius:
-                                                    BorderRadius.circular(12),
-                                              ),
-                                              child: Text(
-                                                _groupStatusLabel(
-                                                  application.status,
-                                                ),
-                                                style: TextStyle(
-                                                  color: statusColor,
-                                                  fontWeight: FontWeight.bold,
-                                                ),
-                                              ),
-                                            ),
-                                            const SizedBox(height: 6),
-                                            Text(
-                                              _groupStatusLabel(
-                                                application.status,
-                                              ),
-                                              style: const TextStyle(
-                                                color: Colors.grey,
-                                                fontSize: 12,
-                                              ),
-                                            ),
-                                            if (isCoordinator &&
-                                                application.status ==
+                                                if (job.status ==
                                                     'approved') ...[
-                                              const SizedBox(height: 10),
-                                              Row(
-                                                children: [
-                                                  Expanded(
-                                                    child: OutlinedButton(
-                                                      onPressed: isBusy
-                                                          ? null
-                                                          : () => _declineGroupOffer(
-                                                              workerId:
-                                                                  workerId,
-                                                              groupApplicationId:
-                                                                  application
-                                                                      .id,
-                                                            ),
-                                                      style:
-                                                          OutlinedButton.styleFrom(
-                                                            foregroundColor:
-                                                                Colors.red,
+                                                  const SizedBox(height: 12),
+                                                  Row(
+                                                    children: [
+                                                      Expanded(
+                                                        child: OutlinedButton(
+                                                          onPressed: isBusy
+                                                              ? null
+                                                              : () => _declineOffer(
+                                                                  workerId:
+                                                                      workerId,
+                                                                  applicationId:
+                                                                      job.id,
+                                                                ),
+                                                          style:
+                                                              OutlinedButton.styleFrom(
+                                                                foregroundColor:
+                                                                    Colors.red,
+                                                              ),
+                                                          child: const Text(
+                                                            'Decline',
                                                           ),
-                                                      child: const Text(
-                                                        'Decline Group',
+                                                        ),
                                                       ),
-                                                    ),
-                                                  ),
-                                                  const SizedBox(width: 10),
-                                                  Expanded(
-                                                    child: ElevatedButton(
-                                                      onPressed: isBusy
-                                                          ? null
-                                                          : () => _acceptGroupOffer(
-                                                              workerId:
-                                                                  workerId,
-                                                              groupApplicationId:
-                                                                  application
-                                                                      .id,
-                                                            ),
-                                                      style:
-                                                          ElevatedButton.styleFrom(
-                                                            backgroundColor:
-                                                                Colors.green,
-                                                          ),
-                                                      child: isBusy
-                                                          ? const SizedBox(
-                                                              height: 18,
-                                                              width: 18,
-                                                              child:
-                                                                  CircularProgressIndicator(
+                                                      const SizedBox(width: 12),
+                                                      Expanded(
+                                                        child: ElevatedButton(
+                                                          onPressed: isBusy
+                                                              ? null
+                                                              : () => _acceptOffer(
+                                                                  workerId:
+                                                                      workerId,
+                                                                  applicationId:
+                                                                      job.id,
+                                                                ),
+                                                          style:
+                                                              ElevatedButton.styleFrom(
+                                                                backgroundColor:
+                                                                    Colors
+                                                                        .green,
+                                                              ),
+                                                          child: isBusy
+                                                              ? const SizedBox(
+                                                                  height: 18,
+                                                                  width: 18,
+                                                                  child: CircularProgressIndicator(
                                                                     strokeWidth:
                                                                         2,
                                                                     color: Colors
                                                                         .white,
                                                                   ),
+                                                                )
+                                                              : const Text(
+                                                                  'Accept',
+                                                                ),
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                ],
+                                                if (job.status == 'accepted' ||
+                                                    job.status ==
+                                                        'in_progress') ...[
+                                                  const SizedBox(height: 12),
+                                                  SizedBox(
+                                                    width: double.infinity,
+                                                    child: ElevatedButton.icon(
+                                                      onPressed: () =>
+                                                          _showProgressDialog(
+                                                            workerId: workerId,
+                                                            job: job,
+                                                          ),
+                                                      icon: const Icon(
+                                                        Icons.edit_note,
+                                                      ),
+                                                      label: const Text(
+                                                        'Record Daily Progress',
+                                                      ),
+                                                      style:
+                                                          ElevatedButton.styleFrom(
+                                                            backgroundColor:
+                                                                Colors.blue,
+                                                          ),
+                                                    ),
+                                                  ),
+                                                  const SizedBox(height: 10),
+                                                  SizedBox(
+                                                    width: double.infinity,
+                                                    child: OutlinedButton.icon(
+                                                      onPressed: isBusy
+                                                          ? null
+                                                          : () =>
+                                                                _markCompleted(
+                                                                  workerId:
+                                                                      workerId,
+                                                                  applicationId:
+                                                                      job.id,
+                                                                ),
+                                                      icon: const Icon(
+                                                        Icons
+                                                            .check_circle_outline,
+                                                      ),
+                                                      label: isBusy
+                                                          ? const Text(
+                                                              'Updating...',
                                                             )
                                                           : const Text(
-                                                              'Accept Group',
+                                                              'Mark Job Completed',
                                                             ),
                                                     ),
                                                   ),
                                                 ],
-                                              ),
-                                            ],
-                                            if (application.status ==
-                                                    'accepted' ||
-                                                application.status ==
-                                                    'in_progress') ...[
-                                              const SizedBox(height: 10),
-                                              SizedBox(
-                                                width: double.infinity,
-                                                child: ElevatedButton.icon(
-                                                  onPressed: () =>
-                                                      _showGroupProgressDialog(
-                                                        workerId: workerId,
-                                                        application:
-                                                            application,
-                                                      ),
-                                                  icon: const Icon(
-                                                    Icons.edit_note,
-                                                  ),
-                                                  label: const Text(
-                                                    'Record Group Daily Progress',
-                                                  ),
-                                                  style:
-                                                      ElevatedButton.styleFrom(
-                                                        backgroundColor:
-                                                            Colors.blue,
-                                                      ),
-                                                ),
-                                              ),
-                                              if (isCoordinator) ...[
-                                                const SizedBox(height: 10),
-                                                SizedBox(
-                                                  width: double.infinity,
-                                                  child: OutlinedButton.icon(
-                                                    onPressed: isBusy
-                                                        ? null
-                                                        : () => _markGroupCompleted(
-                                                            workerId: workerId,
-                                                            groupApplicationId:
-                                                                application.id,
-                                                          ),
-                                                    icon: const Icon(
-                                                      Icons
-                                                          .check_circle_outline,
+                                                if (job.status ==
+                                                    'completed') ...[
+                                                  const SizedBox(height: 12),
+                                                  FutureBuilder<bool>(
+                                                    future: _checkIfJobRated(
+                                                      workerId: workerId,
+                                                      applicationId: job.id,
                                                     ),
-                                                    label: isBusy
-                                                        ? const Text(
-                                                            'Updating...',
-                                                          )
-                                                        : const Text(
-                                                            'Mark Group Job Completed',
+                                                    builder: (context, snapshot) {
+                                                      final alreadyRated =
+                                                          snapshot.data ??
+                                                          false;
+                                                      return SizedBox(
+                                                        width: double.infinity,
+                                                        child: Tooltip(
+                                                          message: alreadyRated
+                                                              ? 'You have already rated this landowner for this job'
+                                                              : '',
+                                                          child: OutlinedButton.icon(
+                                                            onPressed:
+                                                                alreadyRated
+                                                                ? null
+                                                                : () => _showRatingDialog(
+                                                                    workerId:
+                                                                        workerId,
+                                                                    applicationId:
+                                                                        job.id,
+                                                                  ),
+                                                            icon: const Icon(
+                                                              Icons
+                                                                  .star_outline,
+                                                            ),
+                                                            label: Text(
+                                                              alreadyRated
+                                                                  ? 'Rating Submitted'
+                                                                  : 'Rate Landowner',
+                                                            ),
                                                           ),
+                                                        ),
+                                                      );
+                                                    },
+                                                  ),
+                                                ],
+                                                if (job.status == 'accepted' ||
+                                                    job.status ==
+                                                        'in_progress' ||
+                                                    job.status ==
+                                                        'completed') ...[
+                                                  const SizedBox(height: 12),
+                                                  const Text(
+                                                    'Recent Daily Progress',
+                                                    style: TextStyle(
+                                                      fontWeight:
+                                                          FontWeight.bold,
+                                                      fontSize: 14,
+                                                    ),
+                                                  ),
+                                                  _buildProgressHistory(job.id),
+                                                ],
+                                              ],
+                                            ),
+                                          ),
+                                        );
+                                      })
+                                      .toList(growable: false);
+
+                                  final groupCards = groupApplications
+                                      .map((application) {
+                                        final statusColor = _statusColor(
+                                          application.status,
+                                        );
+                                        final isCoordinator =
+                                            application.coordinatorId ==
+                                            workerId;
+                                        final isBusy =
+                                            _actionApplicationId ==
+                                            application.id;
+                                        return Card(
+                                          elevation: 4,
+                                          margin: const EdgeInsets.only(
+                                            bottom: 16,
+                                          ),
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius: BorderRadius.circular(
+                                              16,
+                                            ),
+                                          ),
+                                          child: Padding(
+                                            padding: const EdgeInsets.all(16),
+                                            child: Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: [
+                                                Row(
+                                                  children: [
+                                                    const Icon(
+                                                      Icons.groups,
+                                                      color: Colors.brown,
+                                                    ),
+                                                    const SizedBox(width: 8),
+                                                    Expanded(
+                                                      child: Text(
+                                                        application.jobTitle,
+                                                        style: const TextStyle(
+                                                          fontSize: 17,
+                                                          fontWeight:
+                                                              FontWeight.bold,
+                                                        ),
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                                const SizedBox(height: 8),
+                                                Text(
+                                                  'Group: ${application.groupName}',
+                                                  style: const TextStyle(
+                                                    fontWeight: FontWeight.w600,
                                                   ),
                                                 ),
-                                              ],
-                                            ],
-                                            if (application.status ==
-                                                'completed') ...[
-                                              const SizedBox(height: 12),
-                                              FutureBuilder<bool>(
-                                                future: _checkIfGroupJobRated(
-                                                  workerId: workerId,
-                                                  groupApplicationId:
-                                                      application.id,
+                                                const SizedBox(height: 4),
+                                                Text(
+                                                  'Landowner: ${application.landownerName}',
+                                                  style: const TextStyle(
+                                                    color: Colors.grey,
+                                                  ),
                                                 ),
-                                                builder: (context, snapshot) {
-                                                  final alreadyRated =
-                                                      snapshot.data ?? false;
-                                                  return SizedBox(
+                                                const SizedBox(height: 4),
+                                                Text(
+                                                  'Members: ${application.memberIds.length}',
+                                                  style: const TextStyle(
+                                                    color: Colors.grey,
+                                                  ),
+                                                ),
+                                                const SizedBox(height: 10),
+                                                Container(
+                                                  padding:
+                                                      const EdgeInsets.symmetric(
+                                                        horizontal: 8,
+                                                        vertical: 4,
+                                                      ),
+                                                  decoration: BoxDecoration(
+                                                    color: statusColor
+                                                        .withValues(alpha: 0.1),
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                          12,
+                                                        ),
+                                                  ),
+                                                  child: Text(
+                                                    _groupStatusLabel(
+                                                      application.status,
+                                                    ),
+                                                    style: TextStyle(
+                                                      color: statusColor,
+                                                      fontWeight:
+                                                          FontWeight.bold,
+                                                    ),
+                                                  ),
+                                                ),
+                                                const SizedBox(height: 6),
+                                                Text(
+                                                  _groupStatusLabel(
+                                                    application.status,
+                                                  ),
+                                                  style: const TextStyle(
+                                                    color: Colors.grey,
+                                                    fontSize: 12,
+                                                  ),
+                                                ),
+                                                if (isCoordinator &&
+                                                    application.status ==
+                                                        'approved') ...[
+                                                  const SizedBox(height: 10),
+                                                  Row(
+                                                    children: [
+                                                      Expanded(
+                                                        child: OutlinedButton(
+                                                          onPressed: isBusy
+                                                              ? null
+                                                              : () => _declineGroupOffer(
+                                                                  workerId:
+                                                                      workerId,
+                                                                  groupApplicationId:
+                                                                      application
+                                                                          .id,
+                                                                ),
+                                                          style:
+                                                              OutlinedButton.styleFrom(
+                                                                foregroundColor:
+                                                                    Colors.red,
+                                                              ),
+                                                          child: const Text(
+                                                            'Decline Group',
+                                                          ),
+                                                        ),
+                                                      ),
+                                                      const SizedBox(width: 10),
+                                                      Expanded(
+                                                        child: ElevatedButton(
+                                                          onPressed: isBusy
+                                                              ? null
+                                                              : () => _acceptGroupOffer(
+                                                                  workerId:
+                                                                      workerId,
+                                                                  groupApplicationId:
+                                                                      application
+                                                                          .id,
+                                                                ),
+                                                          style:
+                                                              ElevatedButton.styleFrom(
+                                                                backgroundColor:
+                                                                    Colors
+                                                                        .green,
+                                                              ),
+                                                          child: isBusy
+                                                              ? const SizedBox(
+                                                                  height: 18,
+                                                                  width: 18,
+                                                                  child: CircularProgressIndicator(
+                                                                    strokeWidth:
+                                                                        2,
+                                                                    color: Colors
+                                                                        .white,
+                                                                  ),
+                                                                )
+                                                              : const Text(
+                                                                  'Accept Group',
+                                                                ),
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                ],
+                                                if (application.status ==
+                                                        'accepted' ||
+                                                    application.status ==
+                                                        'in_progress') ...[
+                                                  const SizedBox(height: 10),
+                                                  SizedBox(
                                                     width: double.infinity,
-                                                    child: Tooltip(
-                                                      message: alreadyRated
-                                                          ? 'You have already rated this landowner for this job'
-                                                          : '',
+                                                    child: ElevatedButton.icon(
+                                                      onPressed: () =>
+                                                          _showGroupProgressDialog(
+                                                            workerId: workerId,
+                                                            application:
+                                                                application,
+                                                          ),
+                                                      icon: const Icon(
+                                                        Icons.edit_note,
+                                                      ),
+                                                      label: const Text(
+                                                        'Record Group Daily Progress',
+                                                      ),
+                                                      style:
+                                                          ElevatedButton.styleFrom(
+                                                            backgroundColor:
+                                                                Colors.blue,
+                                                          ),
+                                                    ),
+                                                  ),
+                                                  if (isCoordinator) ...[
+                                                    const SizedBox(height: 10),
+                                                    SizedBox(
+                                                      width: double.infinity,
                                                       child: OutlinedButton.icon(
-                                                        onPressed: alreadyRated
+                                                        onPressed: isBusy
                                                             ? null
-                                                            : () => _showGroupRatingDialog(
+                                                            : () => _markGroupCompleted(
                                                                 workerId:
                                                                     workerId,
                                                                 groupApplicationId:
@@ -2782,151 +3309,211 @@ class _ApprovedJobsPageState extends State<ApprovedJobsPage> {
                                                                         .id,
                                                               ),
                                                         icon: const Icon(
-                                                          Icons.star_outline,
+                                                          Icons
+                                                              .check_circle_outline,
                                                         ),
-                                                        label: Text(
-                                                          alreadyRated
-                                                              ? 'Rating Submitted'
-                                                              : 'Rate Landowner',
-                                                        ),
+                                                        label: isBusy
+                                                            ? const Text(
+                                                                'Updating...',
+                                                              )
+                                                            : const Text(
+                                                                'Mark Group Job Completed',
+                                                              ),
                                                       ),
                                                     ),
-                                                  );
-                                                },
-                                              ),
-                                            ],
-                                            if (application.status ==
-                                                    'accepted' ||
-                                                application.status ==
-                                                    'in_progress' ||
-                                                application.status ==
+                                                  ],
+                                                ],
+                                                if (application.status ==
                                                     'completed') ...[
-                                              const SizedBox(height: 12),
-                                              const Text(
-                                                'Recent Group Progress',
-                                                style: TextStyle(
-                                                  fontWeight: FontWeight.bold,
-                                                  fontSize: 14,
+                                                  const SizedBox(height: 12),
+                                                  FutureBuilder<bool>(
+                                                    future:
+                                                        _checkIfGroupJobRated(
+                                                          workerId: workerId,
+                                                          groupApplicationId:
+                                                              application.id,
+                                                        ),
+                                                    builder: (context, snapshot) {
+                                                      final alreadyRated =
+                                                          snapshot.data ??
+                                                          false;
+                                                      return SizedBox(
+                                                        width: double.infinity,
+                                                        child: Tooltip(
+                                                          message: alreadyRated
+                                                              ? 'You have already rated this landowner for this job'
+                                                              : '',
+                                                          child: OutlinedButton.icon(
+                                                            onPressed:
+                                                                alreadyRated
+                                                                ? null
+                                                                : () => _showGroupRatingDialog(
+                                                                    workerId:
+                                                                        workerId,
+                                                                    groupApplicationId:
+                                                                        application
+                                                                            .id,
+                                                                  ),
+                                                            icon: const Icon(
+                                                              Icons
+                                                                  .star_outline,
+                                                            ),
+                                                            label: Text(
+                                                              alreadyRated
+                                                                  ? 'Rating Submitted'
+                                                                  : 'Rate Landowner',
+                                                            ),
+                                                          ),
+                                                        ),
+                                                      );
+                                                    },
+                                                  ),
+                                                ],
+                                                if (application.status ==
+                                                        'accepted' ||
+                                                    application.status ==
+                                                        'in_progress' ||
+                                                    application.status ==
+                                                        'completed') ...[
+                                                  const SizedBox(height: 12),
+                                                  const Text(
+                                                    'Recent Group Progress',
+                                                    style: TextStyle(
+                                                      fontWeight:
+                                                          FontWeight.bold,
+                                                      fontSize: 14,
+                                                    ),
+                                                  ),
+                                                  _buildGroupProgressHistory(
+                                                    application.id,
+                                                  ),
+                                                ],
+                                              ],
+                                            ),
+                                          ),
+                                        );
+                                      })
+                                      .toList(growable: false);
+
+                                  Widget individualSection = Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      if (individualCards.isEmpty)
+                                        const Padding(
+                                          padding: EdgeInsets.only(bottom: 16),
+                                          child: Text(
+                                            'No individual applications.',
+                                            style: TextStyle(
+                                              color: Colors.grey,
+                                            ),
+                                          ),
+                                        )
+                                      else
+                                        ...individualCards,
+                                    ],
+                                  );
+
+                                  Widget groupSection = Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      if (groupCards.isEmpty)
+                                        const Padding(
+                                          padding: EdgeInsets.only(bottom: 16),
+                                          child: Text(
+                                            'No group applications.',
+                                            style: TextStyle(
+                                              color: Colors.grey,
+                                            ),
+                                          ),
+                                        )
+                                      else
+                                        ...groupCards,
+                                    ],
+                                  );
+
+                                  final selectedSection =
+                                      _showIndividualApplications
+                                      ? individualSection
+                                      : groupSection;
+
+                                  return ListView(
+                                    padding: const EdgeInsets.all(20),
+                                    children: [
+                                      _buildJobCalendar(
+                                        approvedJobs,
+                                        groupSchedules,
+                                      ),
+                                      const SizedBox(height: 24),
+                                      Row(
+                                        children: [
+                                          Expanded(
+                                            child: OutlinedButton(
+                                              onPressed: () {
+                                                if (!_showIndividualApplications) {
+                                                  setState(() {
+                                                    _showIndividualApplications =
+                                                        true;
+                                                  });
+                                                }
+                                              },
+                                              style: OutlinedButton.styleFrom(
+                                                backgroundColor:
+                                                    _showIndividualApplications
+                                                    ? Colors.green.withValues(
+                                                        alpha: 0.15,
+                                                      )
+                                                    : null,
+                                                side: BorderSide(
+                                                  color:
+                                                      _showIndividualApplications
+                                                      ? Colors.green
+                                                      : Colors.grey,
                                                 ),
                                               ),
-                                              _buildGroupProgressHistory(
-                                                application.id,
+                                              child: const Text(
+                                                'Individual Applications',
                                               ),
-                                            ],
-                                          ],
-                                        ),
-                                      ),
-                                    );
-                                  })
-                                  .toList(growable: false);
-
-                              Widget individualSection = Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  if (individualCards.isEmpty)
-                                    const Padding(
-                                      padding: EdgeInsets.only(bottom: 16),
-                                      child: Text(
-                                        'No individual applications.',
-                                        style: TextStyle(color: Colors.grey),
-                                      ),
-                                    )
-                                  else
-                                    ...individualCards,
-                                ],
-                              );
-
-                              Widget groupSection = Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  if (groupCards.isEmpty)
-                                    const Padding(
-                                      padding: EdgeInsets.only(bottom: 16),
-                                      child: Text(
-                                        'No group applications.',
-                                        style: TextStyle(color: Colors.grey),
-                                      ),
-                                    )
-                                  else
-                                    ...groupCards,
-                                ],
-                              );
-
-                              final selectedSection =
-                                  _showIndividualApplications
-                                  ? individualSection
-                                  : groupSection;
-
-                              return ListView(
-                                padding: const EdgeInsets.all(20),
-                                children: [
-                                  _buildJobCalendar(approvedJobs),
-                                  const SizedBox(height: 24),
-                                  Row(
-                                    children: [
-                                      Expanded(
-                                        child: OutlinedButton(
-                                          onPressed: () {
-                                            if (!_showIndividualApplications) {
-                                              setState(() {
-                                                _showIndividualApplications =
-                                                    true;
-                                              });
-                                            }
-                                          },
-                                          style: OutlinedButton.styleFrom(
-                                            backgroundColor:
-                                                _showIndividualApplications
-                                                ? Colors.green.withValues(
-                                                    alpha: 0.15,
-                                                  )
-                                                : null,
-                                            side: BorderSide(
-                                              color: _showIndividualApplications
-                                                  ? Colors.green
-                                                  : Colors.grey,
                                             ),
                                           ),
-                                          child: const Text(
-                                            'Individual Applications',
-                                          ),
-                                        ),
-                                      ),
-                                      const SizedBox(width: 10),
-                                      Expanded(
-                                        child: OutlinedButton(
-                                          onPressed: () {
-                                            if (_showIndividualApplications) {
-                                              setState(() {
-                                                _showIndividualApplications =
-                                                    false;
-                                              });
-                                            }
-                                          },
-                                          style: OutlinedButton.styleFrom(
-                                            backgroundColor:
-                                                !_showIndividualApplications
-                                                ? Colors.green.withValues(
-                                                    alpha: 0.15,
-                                                  )
-                                                : null,
-                                            side: BorderSide(
-                                              color:
-                                                  !_showIndividualApplications
-                                                  ? Colors.green
-                                                  : Colors.grey,
+                                          const SizedBox(width: 10),
+                                          Expanded(
+                                            child: OutlinedButton(
+                                              onPressed: () {
+                                                if (_showIndividualApplications) {
+                                                  setState(() {
+                                                    _showIndividualApplications =
+                                                        false;
+                                                  });
+                                                }
+                                              },
+                                              style: OutlinedButton.styleFrom(
+                                                backgroundColor:
+                                                    !_showIndividualApplications
+                                                    ? Colors.green.withValues(
+                                                        alpha: 0.15,
+                                                      )
+                                                    : null,
+                                                side: BorderSide(
+                                                  color:
+                                                      !_showIndividualApplications
+                                                      ? Colors.green
+                                                      : Colors.grey,
+                                                ),
+                                              ),
+                                              child: const Text(
+                                                'Group Applications',
+                                              ),
                                             ),
                                           ),
-                                          child: const Text(
-                                            'Group Applications',
-                                          ),
-                                        ),
+                                        ],
                                       ),
+                                      const SizedBox(height: 14),
+                                      selectedSection,
                                     ],
-                                  ),
-                                  const SizedBox(height: 14),
-                                  selectedSection,
-                                ],
+                                  );
+                                },
                               );
                             },
                           );
