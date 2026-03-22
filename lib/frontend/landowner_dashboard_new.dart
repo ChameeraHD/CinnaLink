@@ -75,7 +75,7 @@ class _LandownerDashboardState extends State<LandownerDashboard> {
               BottomNavigationBarItem(
                 icon: Icon(Icons.schedule_outlined),
                 activeIcon: Icon(Icons.schedule),
-                label: 'Schedule',
+                label: 'Fixed Jobs',
               ),
               BottomNavigationBarItem(
                 icon: Icon(Icons.person_outline),
