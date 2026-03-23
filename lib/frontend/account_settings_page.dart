@@ -1,9 +1,8 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
-// 1. ADD THIS IMPORT
 import 'package:cinnalink/l10n/app_localizations.dart';
 import '../backend/auth.dart';
-import '../main.dart'; 
+import '../main.dart';
 
 class AccountSettingsPage extends StatefulWidget {
   const AccountSettingsPage({super.key});
@@ -73,7 +72,7 @@ class _AccountSettingsPageState extends State<AccountSettingsPage> {
   }
 
   Future<void> _logout() async {
-    final l10n = AppLocalizations.of(context)!; // Shortcut for dialog
+    final l10n = AppLocalizations.of(context)!;
     final shouldLogout = await showDialog<bool>(
       context: context,
       builder: (dialogContext) {
@@ -110,9 +109,8 @@ class _AccountSettingsPageState extends State<AccountSettingsPage> {
 
   @override
   Widget build(BuildContext context) {
-    // 2. INITIALIZE THE LOCALIZATION SHORTCUT
     final l10n = AppLocalizations.of(context)!;
-    
+
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final shellTopColors = isDark
         ? const [Color(0xFF1A130F), Color(0xFF352417)]
@@ -137,7 +135,7 @@ class _AccountSettingsPageState extends State<AccountSettingsPage> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        l10n.settings, // CHANGED
+                        l10n.settings,
                         style: const TextStyle(
                           fontSize: 28,
                           fontWeight: FontWeight.bold,
@@ -150,6 +148,7 @@ class _AccountSettingsPageState extends State<AccountSettingsPage> {
                         style: TextStyle(fontSize: 16, color: Colors.white70),
                       ),
                       const SizedBox(height: 30),
+                      // PREFERENCES CARD
                       Card(
                         elevation: 8,
                         shape: RoundedRectangleBorder(
@@ -161,7 +160,7 @@ class _AccountSettingsPageState extends State<AccountSettingsPage> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                l10n.preferences, // CHANGED
+                                l10n.preferences,
                                 style: const TextStyle(
                                   fontSize: 20,
                                   fontWeight: FontWeight.bold,
@@ -174,7 +173,7 @@ class _AccountSettingsPageState extends State<AccountSettingsPage> {
                                   borderRadius: BorderRadius.circular(12),
                                 ),
                                 child: SwitchListTile(
-                                  title: Text(l10n.pushNotifications), // CHANGED
+                                  title: Text(l10n.pushNotifications),
                                   subtitle: const Text('Receive job updates'),
                                   value: _notificationsEnabled,
                                   onChanged: (value) {
@@ -189,7 +188,7 @@ class _AccountSettingsPageState extends State<AccountSettingsPage> {
                                   borderRadius: BorderRadius.circular(12),
                                 ),
                                 child: SwitchListTile(
-                                  title: Text(l10n.darkMode), // CHANGED
+                                  title: Text(l10n.darkMode),
                                   subtitle: const Text('Use dark theme'),
                                   value: _darkModeEnabled,
                                   onChanged: (value) {
@@ -200,9 +199,9 @@ class _AccountSettingsPageState extends State<AccountSettingsPage> {
                               ),
                               const SizedBox(height: 12),
                               DropdownButtonFormField<String>(
-                                value: _language, 
+                                value: _language,
                                 decoration: InputDecoration(
-                                  labelText: l10n.language, // CHANGED
+                                  labelText: l10n.language,
                                   prefixIcon: const Icon(Icons.language),
                                   border: OutlineInputBorder(
                                     borderRadius: BorderRadius.circular(12),
@@ -234,7 +233,7 @@ class _AccountSettingsPageState extends State<AccountSettingsPage> {
                                     ),
                                   ),
                                   child: Text(
-                                    l10n.saveSettings, // CHANGED
+                                    l10n.saveSettings,
                                     style: const TextStyle(
                                         fontSize: 18, fontWeight: FontWeight.bold),
                                   ),
@@ -256,7 +255,7 @@ class _AccountSettingsPageState extends State<AccountSettingsPage> {
                                       : const Icon(Icons.logout),
                                   label: Text(_isSigningOut
                                       ? 'Signing Out...'
-                                      : l10n.logout), // CHANGED
+                                      : l10n.logout),
                                   style: OutlinedButton.styleFrom(
                                     foregroundColor: Colors.red,
                                     side: const BorderSide(color: Colors.red),
@@ -270,6 +269,185 @@ class _AccountSettingsPageState extends State<AccountSettingsPage> {
                           ),
                         ),
                       ),
+                      const SizedBox(height: 20),
+                      // HELP & SUPPORT CARD
+                      Card(
+                        elevation: 8,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: Padding(
+                          padding: const EdgeInsets.all(24.0),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  const Icon(
+                                    Icons.help_outline,
+                                    size: 28,
+                                    color: Colors.blue,
+                                  ),
+                                  const SizedBox(width: 12),
+                                  const Text(
+                                    'Help & Support',
+                                    style: TextStyle(
+                                      fontSize: 20,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 16),
+                              Container(
+                                padding: const EdgeInsets.all(16),
+                                decoration: BoxDecoration(
+                                  color: tileColor,
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(
+                                    color: Colors.blue.withValues(alpha: 0.3),
+                                  ),
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const Text(
+                                      'Need assistance?',
+                                      style: TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 12),
+                                    // Phone Support
+                                    Row(
+                                      children: [
+                                        const Icon(
+                                          Icons.phone,
+                                          size: 20,
+                                          color: Colors.green,
+                                        ),
+                                        const SizedBox(width: 12),
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              const Text(
+                                                'Customer Support Hotline',
+                                                style: TextStyle(
+                                                  fontSize: 12,
+                                                  color: Colors.grey,
+                                                ),
+                                              ),
+                                              const SizedBox(height: 4),
+                                              SelectableText(
+                                                '+94 (0) 112 234 567',
+                                                style: const TextStyle(
+                                                  fontSize: 16,
+                                                  fontWeight: FontWeight.bold,
+                                                  color: Colors.blue,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 12),
+                                    // Email Support
+                                    Row(
+                                      children: [
+                                        const Icon(
+                                          Icons.email,
+                                          size: 20,
+                                          color: Colors.orange,
+                                        ),
+                                        const SizedBox(width: 12),
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              const Text(
+                                                'Email Support',
+                                                style: TextStyle(
+                                                  fontSize: 12,
+                                                  color: Colors.grey,
+                                                ),
+                                              ),
+                                              const SizedBox(height: 4),
+                                              SelectableText(
+                                                'support@cinnalink.lk',
+                                                style: const TextStyle(
+                                                  fontSize: 14,
+                                                  fontWeight: FontWeight.w500,
+                                                  color: Colors.blue,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 12),
+                                    // Business Hours
+                                    Row(
+                                      children: [
+                                        const Icon(
+                                          Icons.schedule,
+                                          size: 20,
+                                          color: Colors.purple,
+                                        ),
+                                        const SizedBox(width: 12),
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              const Text(
+                                                'Available Hours',
+                                                style: TextStyle(
+                                                  fontSize: 12,
+                                                  color: Colors.grey,
+                                                ),
+                                              ),
+                                              const SizedBox(height: 4),
+                                              const Text(
+                                                'Mon - Fri: 9:00 AM - 6:00 PM',
+                                                style: TextStyle(
+                                                  fontSize: 13,
+                                                  fontWeight: FontWeight.w500,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(height: 16),
+                              SizedBox(
+                                width: double.infinity,
+                                child: OutlinedButton.icon(
+                                  onPressed: () {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text('FAQ page coming soon!'),
+                                      ),
+                                    );
+                                  },
+                                  icon: const Icon(Icons.description),
+                                  label: const Text('View FAQ'),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 30),
                     ],
                   ),
                 ),
