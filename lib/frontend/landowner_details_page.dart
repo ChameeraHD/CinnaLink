@@ -104,6 +104,52 @@ class _LandownerDetailsPageState extends State<LandownerDetailsPage> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      Center(
+                        child: Stack(
+                          children: [
+                            Container(
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                border: Border.all(color: Colors.white, width: 4),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withOpacity(0.2),
+                                    blurRadius: 10,
+                                    spreadRadius: 2,
+                                  )
+                                ],
+                              ),
+                              child: const CircleAvatar(
+                                radius: 50,
+                                backgroundColor: Colors.white24,
+                                child: Icon(Icons.person, size: 50, color: Colors.white),
+                                
+                              ),
+                            ),
+                            Positioned(
+                              bottom: 0,
+                              right: 0,
+                              child: Container(
+                                height: 35,
+                                width: 35,
+                                decoration: BoxDecoration(
+                                  color: Theme.of(context).primaryColor,
+                                  shape: BoxShape.circle,
+                                  border: Border.all(color: Colors.white, width: 2),
+                                ),
+                                child: IconButton(
+                                  padding: EdgeInsets.zero,
+                                  icon: const Icon(Icons.camera_alt, size: 18, color: Colors.white),
+                                  onPressed: () {
+                                  },
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                      
                       Text(
                         l10n.myDetails, // UPDATED
                         style: const TextStyle(
