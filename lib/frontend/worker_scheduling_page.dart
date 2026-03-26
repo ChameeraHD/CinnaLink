@@ -877,9 +877,7 @@ class _WorkerSchedulingPageState extends State<WorkerSchedulingPage> {
   Widget build(BuildContext context) {
     final landownerId = AuthService.currentUserId;
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final shellTopColors = isDark
-        ? const [Color(0xFF15110D), Color(0xFF2E2214)]
-        : const [Colors.brown, Colors.orangeAccent];
+    final shellTopColors = isDark ? Color(0xFF8D5A2B) : Color(0xFF8D5A2B);
     final headerTileColor = isDark
         ? const Color(0xFF241B15)
         : Colors.white.withValues(alpha: 0.9);
@@ -888,13 +886,7 @@ class _WorkerSchedulingPageState extends State<WorkerSchedulingPage> {
 
     return Scaffold(
       body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: shellTopColors,
-          ),
-        ),
+        decoration: BoxDecoration(color: shellTopColors),
         child: SafeArea(
           child: landownerId == null
               ? const Center(

@@ -36,7 +36,9 @@ class _LandownerDashboardState extends State<LandownerDashboard> {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final navAccent = isDark ? const Color(0xFFD7A86E) : Colors.brown;
+    final navAccent = isDark
+        ? const Color(0xFFD7A86E)
+        : const Color.fromARGB(255, 221, 128, 103);
     return Scaffold(
       body: _pages[_selectedIndex],
       bottomNavigationBar: Container(
@@ -605,12 +607,27 @@ class _WorkerApplicationsPageState extends State<WorkerApplicationsPage> {
     final bodyColor = isDark ? const Color(0xFF18130F) : Colors.white;
 
     return Scaffold(
+      backgroundColor: const Color(0xFF8D5A2B),
       appBar: AppBar(
-        title: const Text('Review Applications'),
-        backgroundColor: Colors.green,
+        title: const Text(
+          'Review Applications',
+          style: TextStyle(
+            fontSize: 28,
+            color: Colors.white,
+            fontWeight: FontWeight.bold,
+            // Change this to your preferred color
+          ),
+        ),
+        backgroundColor: const Color(0xFF8D5A2B),
+        elevation: 0,
       ),
       body: user == null
-          ? const Center(child: Text('Please sign in to view applications.'))
+          ? const Center(
+              child: Text(
+                'Please sign in to view applications.',
+                style: TextStyle(color: Colors.white),
+              ),
+            )
           : StreamBuilder<List<JobRecord>>(
               stream: JobRepository.streamJobsForLandowner(user.uid),
               builder: (context, snapshot) {
@@ -629,96 +646,120 @@ class _WorkerApplicationsPageState extends State<WorkerApplicationsPage> {
                 }
 
                 return Container(
-                  color: bodyColor,
-                  child: ListView.builder(
-                    padding: const EdgeInsets.all(16),
-                    itemCount: jobs.length,
-                    itemBuilder: (context, index) {
-                      final job = jobs[index];
-                      final isExpanded = _expandedJobs[job.id] ?? false;
+                  margin: const EdgeInsets.fromLTRB(16, 10, 16, 20),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(24),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.1),
+                        blurRadius: 10,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(24),
+                    child: ListView.builder(
+                      padding: const EdgeInsets.all(16),
+                      itemCount: jobs.length,
+                      itemBuilder: (context, index) {
+                        final job = jobs[index];
+                        final isExpanded = _expandedJobs[job.id] ?? false;
 
-                      return Card(
-                        margin: const EdgeInsets.only(bottom: 16),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Padding(
-                          padding: const EdgeInsets.all(16),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              GestureDetector(
-                                onTap: () {
-                                  setState(() {
-                                    _expandedJobs[job.id] =
-                                        !(_expandedJobs[job.id] ?? false);
-                                  });
-                                },
-                                child: Row(
-                                  children: [
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            job.title,
-                                            style: const TextStyle(
-                                              fontSize: 18,
-                                              fontWeight: FontWeight.bold,
-                                            ),
-                                          ),
-                                          const SizedBox(height: 4),
-                                          Text(
-                                            'Job ID: ${job.id}',
-                                            style: TextStyle(
-                                              color: Colors.grey[600],
-                                              fontSize: 12,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                    Icon(
-                                      isExpanded
-                                          ? Icons.expand_less
-                                          : Icons.expand_more,
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              if (isExpanded) ...[
-                                const SizedBox(height: 16),
-                                const Divider(),
-                                const SizedBox(height: 12),
-                                const Text(
-                                  'Individual Applications',
-                                  style: TextStyle(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                                const SizedBox(height: 8),
-                                _buildApplicationList(job),
-                                const SizedBox(height: 16),
-                                const Text(
-                                  'Group Applications',
-                                  style: TextStyle(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                                const SizedBox(height: 8),
-                                _buildGroupApplicationList(
-                                  job: job,
-                                  landownerId: user.uid,
-                                ),
-                              ],
-                            ],
+                        return Card(
+                          elevation: 0,
+                          color: Colors.grey[100],
+                          margin: const EdgeInsets.only(bottom: 16),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            side: BorderSide(
+                              color: Colors.grey.shade300,
+                              width: 1,
+                            ),
                           ),
-                        ),
-                      );
-                    },
+                          child: Padding(
+                            padding: const EdgeInsets.all(16),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                GestureDetector(
+                                  onTap: () {
+                                    setState(() {
+                                      _expandedJobs[job.id] =
+                                          !(_expandedJobs[job.id] ?? false);
+                                    });
+                                  },
+                                  child: Row(
+                                    children: [
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              job.title,
+                                              style: const TextStyle(
+                                                fontSize: 18,
+                                                fontWeight: FontWeight.bold,
+                                                color: Colors.black87,
+                                              ),
+                                            ),
+                                            const SizedBox(height: 4),
+                                            Text(
+                                              'Job ID: ${job.id}',
+                                              style: TextStyle(
+                                                color: Colors.grey[600],
+                                                fontSize: 12,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                      Icon(
+                                        isExpanded
+                                            ? Icons.expand_less
+                                            : Icons.expand_more,
+                                        color: const Color(0xFF8D5A2B),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                if (isExpanded) ...[
+                                  const SizedBox(height: 16),
+                                  const Divider(),
+                                  const SizedBox(height: 12),
+                                  const Text(
+                                    'Individual Applications',
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.black54,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  _buildApplicationList(job),
+                                  const SizedBox(height: 16),
+                                  const Text(
+                                    'Group Applications',
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.black54,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  _buildGroupApplicationList(
+                                    job: job,
+                                    landownerId: user.uid,
+                                  ),
+                                ],
+                              ],
+                            ),
+                          ),
+                        );
+                      },
+                    ),
                   ),
                 );
               },

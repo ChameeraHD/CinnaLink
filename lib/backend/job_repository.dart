@@ -60,6 +60,8 @@ class JobRecord {
       updatedAt: (data['updatedAt'] as Timestamp?)?.toDate(),
     );
   }
+
+  get phoneNumber => null;
 }
 
 class WorkerApplicationRecord {
