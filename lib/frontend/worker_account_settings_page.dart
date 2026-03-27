@@ -17,6 +17,7 @@ class _WorkerAccountSettingsPageState extends State<WorkerAccountSettingsPage> {
   Map<String, dynamic>? _profile;
   bool _isLoading = true;
   bool _isSigningOut = false;
+  bool _isDeletingAccount = false;
 
   @override
   void initState() {
@@ -51,6 +52,58 @@ class _WorkerAccountSettingsPageState extends State<WorkerAccountSettingsPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Settings saved successfully!')),
       );
+    }
+  }
+
+  Future<void> _deleteAccount() async {
+    final shouldDelete = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Delete Account'),
+          content: const Text(
+            'Are you sure you want to permanently delete your account? This action cannot be undone.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+              child: const Text('Delete Account'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (shouldDelete != true) {
+      return;
+    }
+
+    setState(() {
+      _isDeletingAccount = true;
+    });
+
+    try {
+      await AuthService.deleteCurrentUser();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Account deleted successfully')),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Account deletion failed: $error')),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isDeletingAccount = false;
+        });
+      }
     }
   }
 
@@ -196,6 +249,20 @@ class _WorkerAccountSettingsPageState extends State<WorkerAccountSettingsPage> {
                                 );
                               },
                             ),
+                            const Divider(),
+                            ListTile(
+                              contentPadding: EdgeInsets.zero,
+                              title: const Text(
+                                'Delete Account',
+                                style: TextStyle(color: Colors.red),
+                              ),
+                              subtitle: const Text('Permanently delete your account'),
+                              trailing: Icon(
+                                Icons.delete_outline,
+                                color: Colors.red,
+                              ),
+                              onTap: _isDeletingAccount ? null : _deleteAccount,
+                            ),
                           ],
                         ),
                       ),
@@ -280,32 +347,26 @@ class _WorkerAccountSettingsPageState extends State<WorkerAccountSettingsPage> {
                               width: double.infinity,
                               height: 50,
                               child: OutlinedButton.icon(
-                                onPressed:
-                                    _isSigningOut ? null : _logout,
+                                onPressed: _isSigningOut ? null : _logout,
                                 style: OutlinedButton.styleFrom(
                                   foregroundColor: Colors.red,
-                                  side:
-                                      const BorderSide(color: Colors.red),
+                                  side: const BorderSide(color: Colors.red),
                                   shape: RoundedRectangleBorder(
-                                    borderRadius:
-                                        BorderRadius.circular(12),
+                                    borderRadius: BorderRadius.circular(12),
                                   ),
                                 ),
                                 icon: _isSigningOut
                                     ? const SizedBox(
                                         height: 18,
                                         width: 18,
-                                        child:
-                                            CircularProgressIndicator(
+                                        child: CircularProgressIndicator(
                                           strokeWidth: 2,
                                           color: Colors.red,
                                         ),
                                       )
                                     : const Icon(Icons.logout),
                                 label: Text(
-                                  _isSigningOut
-                                      ? 'Signing Out...'
-                                      : 'Logout',
+                                  _isSigningOut ? 'Signing Out...' : 'Logout',
                                 ),
                               ),
                             ),
@@ -363,7 +424,6 @@ class _WorkerAccountSettingsPageState extends State<WorkerAccountSettingsPage> {
                                     ),
                                   ),
                                   const SizedBox(height: 12),
-                                  // Phone Support
                                   Row(
                                     children: [
                                       const Icon(
@@ -399,7 +459,6 @@ class _WorkerAccountSettingsPageState extends State<WorkerAccountSettingsPage> {
                                     ],
                                   ),
                                   const SizedBox(height: 12),
-                                  // Email Support
                                   Row(
                                     children: [
                                       const Icon(
@@ -435,7 +494,6 @@ class _WorkerAccountSettingsPageState extends State<WorkerAccountSettingsPage> {
                                     ],
                                   ),
                                   const SizedBox(height: 12),
-                                  // Business Hours
                                   Row(
                                     children: [
                                       const Icon(
