@@ -72,6 +72,29 @@ class AuthService {
     await _auth.signOut();
   }
 
+  /// Deletes the current user's account and Firestore document.
+  static Future<void> deleteCurrentUser() async {
+    try {
+      final user = _auth.currentUser;
+      if (user == null) {
+        throw Exception('No user logged in');
+      }
+
+      _debugLog('AuthService: Deleting account for user: ${user.uid}');
+
+      // Delete user document from Firestore
+      await _firestore.collection('users').doc(user.uid).delete();
+      _debugLog('AuthService: Deleted Firestore user document');
+
+      // Delete the Firebase Authentication user
+      await user.delete();
+      _debugLog('AuthService: Deleted Firebase Auth user');
+    } catch (e) {
+      _debugLog('AuthService: Error deleting user: $e');
+      rethrow;
+    }
+  }
+
   /// Gets the current user's role from Firestore.
   static Future<String?> getCurrentUserRole() async {
     final user = _auth.currentUser;
@@ -188,6 +211,7 @@ class AuthService {
       'phone': phone,
       'emailVerified': false,
       'darkModeEnabled': darkModeEnabled,
+      'notificationsEnabled': true,
       'createdAt': FieldValue.serverTimestamp(),
       'updatedAt': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));
@@ -310,11 +334,11 @@ class AuthService {
 
     try {
       await _firestore.collection('users').doc(user.uid).update(updates);
+      _debugLog('AuthService: Updated user profile');
     } catch (e) {
       _debugLog('AuthService: Error updating user profile: $e');
+      rethrow;
     }
   }
-
-
 }
 
