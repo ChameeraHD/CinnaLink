@@ -17,6 +17,7 @@ class _AccountSettingsPageState extends State<AccountSettingsPage> {
   String _language = 'English';
   bool _isLoading = true;
   bool _isSigningOut = false;
+  bool _isDeletingAccount = false; // added
 
   final List<String> _languages = ['English', 'Tamil', 'Sinhala'];
 
@@ -69,6 +70,55 @@ class _AccountSettingsPageState extends State<AccountSettingsPage> {
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Settings saved successfully!')),
     );
+  }
+
+  Future<void> _deleteAccount() async {
+    final shouldDelete = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Delete Account'),
+        content: const Text(
+          'Are you sure you want to permanently delete your account? This action cannot be undone.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Delete Account'),
+          ),
+        ],
+      ),
+    );
+
+    if (shouldDelete != true) return;
+
+    setState(() {
+      _isDeletingAccount = true;
+    });
+
+    try {
+      await AuthService.deleteCurrentUser();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Account deleted successfully')),
+      );
+      // optionally navigate away after deletion, e.g. to login screen
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Account deletion failed: $error')),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isDeletingAccount = false;
+        });
+      }
+    }
   }
 
   Future<void> _logout() async {
@@ -240,6 +290,23 @@ class _AccountSettingsPageState extends State<AccountSettingsPage> {
                                 ),
                               ),
                               const SizedBox(height: 12),
+                              ListTile(
+                                contentPadding: EdgeInsets.zero,
+                                title: const Text(
+                                  'Delete Account',
+                                  style: TextStyle(color: Colors.red),
+                                ),
+                                subtitle: const Text('Permanently remove your account'),
+                                trailing: _isDeletingAccount
+                                    ? const SizedBox(
+                                        width: 20,
+                                        height: 20,
+                                        child: CircularProgressIndicator(strokeWidth: 2),
+                                      )
+                                    : const Icon(Icons.delete_outline, color: Colors.red),
+                                onTap: _isDeletingAccount ? null : _deleteAccount,
+                              ),
+                              const SizedBox(height: 12),
                               SizedBox(
                                 width: double.infinity,
                                 height: 50,
@@ -253,9 +320,8 @@ class _AccountSettingsPageState extends State<AccountSettingsPage> {
                                               strokeWidth: 2, color: Colors.red),
                                         )
                                       : const Icon(Icons.logout),
-                                  label: Text(_isSigningOut
-                                      ? 'Signing Out...'
-                                      : l10n.logout),
+                                  label: Text(
+                                      _isSigningOut ? 'Signing Out...' : l10n.logout),
                                   style: OutlinedButton.styleFrom(
                                     foregroundColor: Colors.red,
                                     side: const BorderSide(color: Colors.red),
@@ -305,7 +371,7 @@ class _AccountSettingsPageState extends State<AccountSettingsPage> {
                                   color: tileColor,
                                   borderRadius: BorderRadius.circular(12),
                                   border: Border.all(
-                                    color: Colors.blue.withValues(alpha: 0.3),
+                                    color: Colors.blue.withOpacity(0.3),
                                   ),
                                 ),
                                 child: Column(
@@ -319,7 +385,6 @@ class _AccountSettingsPageState extends State<AccountSettingsPage> {
                                       ),
                                     ),
                                     const SizedBox(height: 12),
-                                    // Phone Support
                                     Row(
                                       children: [
                                         const Icon(
@@ -355,7 +420,6 @@ class _AccountSettingsPageState extends State<AccountSettingsPage> {
                                       ],
                                     ),
                                     const SizedBox(height: 12),
-                                    // Email Support
                                     Row(
                                       children: [
                                         const Icon(
@@ -391,7 +455,6 @@ class _AccountSettingsPageState extends State<AccountSettingsPage> {
                                       ],
                                     ),
                                     const SizedBox(height: 12),
-                                    // Business Hours
                                     Row(
                                       children: [
                                         const Icon(
