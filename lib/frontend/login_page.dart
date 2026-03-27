@@ -1,3 +1,4 @@
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../backend/auth.dart';
@@ -11,15 +12,56 @@ class LoginPage extends StatefulWidget {
   State<LoginPage> createState() => _LoginPageState();
 }
 
-class _LoginPageState extends State<LoginPage> {
+class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMixin {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   bool _isLoading = false;
 
-  Future<void> _forgotPassword() async {
-    final emailController = TextEditingController(
-      text: _emailController.text.trim(),
+  late AnimationController _animationController;
+  late Animation<Color?> _colorAnimation1;
+  late Animation<Color?> _colorAnimation2;
+
+  final List<_DecorCircle> _decorCircles = [
+    _DecorCircle(size: 90, baseDx: 0.15, baseDy: 0.17, color: const Color(0x4D8E7EFF), speed: 1.0, direction: 1),
+    _DecorCircle(size: 64, baseDx: 0.82, baseDy: 0.12, color: const Color(0x45879DF5), speed: 1.3, direction: -1),
+    _DecorCircle(size: 100, baseDx: 0.30, baseDy: 0.75, color: const Color(0x4D9D7EFF), speed: 0.9, direction: 1),
+    _DecorCircle(size: 72, baseDx: 0.78, baseDy: 0.68, color: const Color(0x4D6E53F2), speed: 1.1, direction: -1),
+    _DecorCircle(size: 46, baseDx: 0.50, baseDy: 0.40, color: const Color(0x6AB6A0FF), speed: 1.5, direction: 1),
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    _animationController = AnimationController(
+      duration: const Duration(seconds: 8),
+      vsync: this,
+    )..repeat(reverse: true);
+
+    _colorAnimation1 = ColorTween(
+      begin: const Color(0xFF1D316B),
+      end: const Color(0xFF5247AD),
+    ).animate(
+      CurvedAnimation(parent: _animationController, curve: Curves.easeInOut),
     );
+
+    _colorAnimation2 = ColorTween(
+      begin: const Color(0xFF2F54B3),
+      end: const Color(0xFF8469E8),
+    ).animate(
+      CurvedAnimation(parent: _animationController, curve: Curves.easeInOut),
+    );
+  }
+
+  @override
+  void dispose() {
+    _animationController.dispose();
+    _emailController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _forgotPassword() async {
+    final emailController = TextEditingController(text: _emailController.text.trim());
 
     final email = await showDialog<String>(
       context: context,
@@ -34,10 +76,7 @@ class _LoginPageState extends State<LoginPage> {
           ),
         ),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Cancel'),
-          ),
+          TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Cancel')),
           ElevatedButton(
             onPressed: () => Navigator.of(context).pop(emailController.text.trim()),
             child: const Text('Send Link'),
@@ -46,15 +85,11 @@ class _LoginPageState extends State<LoginPage> {
       ),
     );
 
-    if (email == null || email.isEmpty) {
-      return;
-    }
+    if (email == null || email.isEmpty) return;
 
     final ok = await AuthService.sendPasswordResetEmail(email: email);
 
-    if (!mounted) {
-      return;
-    }
+    if (!mounted) return;
 
     await Navigator.of(context).push(
       MaterialPageRoute(
@@ -72,15 +107,11 @@ class _LoginPageState extends State<LoginPage> {
       'user-not-found' => 'No account found for that email.',
       'wrong-password' => 'Incorrect password.',
       'invalid-email' => 'Please enter a valid email address.',
-      'invalid-credential' =>
-        'Email or password is incorrect. Please check and try again.',
-      'invalid-login-credentials' =>
-        'Email or password is incorrect. Please check and try again.',
+      'invalid-credential' => 'Email or password is incorrect. Please check and try again.',
+      'invalid-login-credentials' => 'Email or password is incorrect. Please check and try again.',
       'user-disabled' => 'This account has been disabled.',
-      'too-many-requests' =>
-        'Too many attempts. Please wait a moment and try again.',
-      'network-request-failed' =>
-        'Network error. Check your internet connection and try again.',
+      'too-many-requests' => 'Too many attempts. Please wait a moment and try again.',
+      'network-request-failed' => 'Network error. Check your internet connection and try again.',
       _ => e.message?.isNotEmpty == true
           ? e.message!
           : 'Login failed (${e.code}). Please try again.',
@@ -93,23 +124,14 @@ class _LoginPageState extends State<LoginPage> {
     final password = _passwordController.text;
 
     if (email.isEmpty || password.isEmpty) {
-      messenger.showSnackBar(
-        const SnackBar(content: Text('Please enter email and password.')),
-      );
+      messenger.showSnackBar(const SnackBar(content: Text('Please enter email and password.')));
       return;
     }
 
-    setState(() {
-      _isLoading = true;
-    });
+    setState(() => _isLoading = true);
 
     try {
-      debugPrint('LoginPage: Attempting to sign in with email: $email');
-      await AuthService.signInWithEmailPassword(
-        email: email,
-        password: password,
-      );
-      debugPrint('LoginPage: Sign in completed successfully');
+      await AuthService.signInWithEmailPassword(email: email, password: password);
 
       final isEmailVerified = await AuthService.refreshAndSyncEmailVerification();
       if (!isEmailVerified) {
@@ -117,181 +139,167 @@ class _LoginPageState extends State<LoginPage> {
         return;
       }
 
-      // Ensure user document exists
       await AuthService.ensureCurrentUserDocumentExists();
-
-      // AuthGate handles navigation based on the user's role.
     } on FirebaseAuthException catch (e) {
-      debugPrint('LoginPage: Firebase Auth Exception: ${e.code} - ${e.message}');
-      messenger.showSnackBar(
-        SnackBar(content: Text('${_readableAuthError(e)} [code: ${e.code}]')),
-      );
+      messenger.showSnackBar(SnackBar(content: Text('${_readableAuthError(e)} [code: ${e.code}]')));
     } catch (e) {
-      debugPrint('LoginPage: Unexpected error during login: $e');
-      messenger.showSnackBar(
-        SnackBar(content: Text('Login failed: $e')),
-      );
+      messenger.showSnackBar(SnackBar(content: Text('Login failed: $e')));
     } finally {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final shellTopColors = isDark
-        ? const [Color(0xFF0A1630), Color(0xFF123A6D)]
-        : const [Colors.blueAccent, Colors.lightBlueAccent];
-    final cardColor = isDark ? const Color(0xFF0F233F) : Colors.white;
-    final titleColor = isDark ? const Color(0xFF79B6FF) : Colors.blueAccent;
-    final subtitleColor = isDark ? Colors.white70 : Colors.grey;
-    final inputFill = isDark ? const Color(0xFF1A355B) : Colors.grey.shade100;
-    final buttonColor = isDark ? const Color(0xFF2E80F0) : Colors.blueAccent;
+    final shellTopColors = [
+      _colorAnimation1.value ?? const Color(0xFF1D316B),
+      _colorAnimation2.value ?? const Color(0xFF8469E8),
+    ];
+    final cardColor = Colors.white.withOpacity(0.92);
+    final titleColor = const Color(0xFF2A3A88);
+    final subtitleColor = const Color(0xFF5F6EA8);
+    final inputFill = const Color(0xFFE8EBFF);
+    final buttonColor = const Color(0xFF5766C1);
 
     return Scaffold(
-      body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: shellTopColors,
-          ),
-        ),
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(24.0),
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 460),
-              child: Card(
-                elevation: 10,
-                color: cardColor,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.all(30.0),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        Icons.agriculture,
-                        size: 80,
-                        color: titleColor,
-                      ),
-                      const SizedBox(height: 16),
-                      Text(
-                        'CinnaLink',
-                        style: TextStyle(
-                          fontSize: 34,
-                          fontWeight: FontWeight.bold,
-                          color: titleColor,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Welcome Back',
-                        style: TextStyle(
-                          fontSize: 18,
-                          color: subtitleColor,
-                        ),
-                      ),
-                      const SizedBox(height: 28),
-                      TextField(
-                        controller: _emailController,
-                        keyboardType: TextInputType.emailAddress,
-                        decoration: InputDecoration(
-                          labelText: 'Email',
-                          prefixIcon: const Icon(Icons.email),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          filled: true,
-                          fillColor: inputFill,
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      TextField(
-                        controller: _passwordController,
-                        decoration: InputDecoration(
-                          labelText: 'Password',
-                          prefixIcon: const Icon(Icons.lock),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          filled: true,
-                          fillColor: inputFill,
-                        ),
-                        obscureText: true,
-                      ),
-                      const SizedBox(height: 24),
-                      SizedBox(
-                        width: double.infinity,
-                        height: 50,
-                        child: ElevatedButton(
-                          onPressed: _isLoading ? null : _login,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: buttonColor,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            elevation: 4,
-                          ),
-                          child: _isLoading
-                              ? const CircularProgressIndicator(color: Colors.white)
-                              : const Text(
-                                  'Login',
-                                  style: TextStyle(
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.white,
-                                  ),
-                                ),
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      TextButton(
-                        onPressed: () {
-                          Navigator.of(context).push(
-                            MaterialPageRoute(builder: (context) => const RegisterPage()),
-                          );
-                        },
-                        child: Text(
-                          "Don't have an account? Register now",
-                          style: TextStyle(
-                            color: isDark
-                                ? const Color(0xFF9ACBFF)
-                                : Colors.blueAccent,
-                          ),
-                        ),
-                      ),
-                      TextButton(
-                        onPressed: _isLoading ? null : _forgotPassword,
-                        style: TextButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                          minimumSize: Size.zero,
-                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                        ),
-                        child: Text(
-                          'Forgot password?',
-                          style: TextStyle(
-                            color: isDark
-                                ? const Color(0xFF9ACBFF)
-                                : Colors.blueAccent,
-                          ),
-                        ),
-                      ),
-                    ],
+      body: AnimatedBuilder(
+        animation: _animationController,
+        builder: (context, child) {
+          final t = _animationController.value;
+          return Stack(
+            children: [
+              Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: shellTopColors,
                   ),
                 ),
               ),
-            ),
-          ),
-        ),
+              ..._decorCircles.map((circle) {
+                final dx = circle.baseDx + sin(t * 2 * pi * circle.speed + circle.direction) * 0.03;
+                final dy = circle.baseDy + cos(t * 2 * pi * circle.speed + circle.direction) * 0.03;
+                return Positioned(
+                  left: MediaQuery.of(context).size.width * dx,
+                  top: MediaQuery.of(context).size.height * dy,
+                  child: Transform.scale(
+                    scale: 0.86 + sin(t * 2 * pi * circle.speed + circle.direction) * 0.06,
+                    child: Container(
+                      width: circle.size,
+                      height: circle.size,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: circle.color,
+                        boxShadow: [
+                          BoxShadow(color: circle.color.withOpacity(0.25), blurRadius: 14, spreadRadius: 2),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              }).toList(),
+              Center(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.all(24.0),
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 460),
+                    child: Card(
+                      elevation: 14,
+                      color: cardColor,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                      child: Padding(
+                        padding: const EdgeInsets.all(30.0),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.agriculture, size: 80, color: titleColor),
+                            const SizedBox(height: 16),
+                            Text(
+                              'CinnaLink',
+                              style: TextStyle(fontSize: 34, fontWeight: FontWeight.bold, color: titleColor),
+                            ),
+                            const SizedBox(height: 8),
+                            Text('Welcome Back', style: TextStyle(fontSize: 18, color: subtitleColor)),
+                            const SizedBox(height: 28),
+                            TextField(
+                              controller: _emailController,
+                              keyboardType: TextInputType.emailAddress,
+                              decoration: InputDecoration(
+                                labelText: 'Email',
+                                prefixIcon: const Icon(Icons.email),
+                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                                filled: true,
+                                fillColor: inputFill,
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                            TextField(
+                              controller: _passwordController,
+                              decoration: InputDecoration(
+                                labelText: 'Password',
+                                prefixIcon: const Icon(Icons.lock),
+                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                                filled: true,
+                                fillColor: inputFill,
+                              ),
+                              obscureText: true,
+                            ),
+                            const SizedBox(height: 24),
+                            SizedBox(
+                              width: double.infinity,
+                              height: 50,
+                              child: ElevatedButton(
+                                onPressed: _isLoading ? null : _login,
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: buttonColor,
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                  elevation: 4,
+                                ),
+                                child: _isLoading
+                                    ? const CircularProgressIndicator(color: Colors.white)
+                                    : const Text('Login', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white)),
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            TextButton(
+                              onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (context) => const RegisterPage())),
+                              child: const Text("Don't have an account? Register now", style: TextStyle(color: Color(0xFF5766C1))),
+                            ),
+                            TextButton(
+                              onPressed: _isLoading ? null : _forgotPassword,
+                              style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), minimumSize: Size.zero, tapTargetSize: MaterialTapTargetSize.shrinkWrap),
+                              child: const Text('Forgot password?', style: TextStyle(color: Color(0xFF5766C1))),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
+}
+
+class _DecorCircle {
+  final double size;
+  final double baseDx;
+  final double baseDy;
+  final Color color;
+  final double speed;
+  final double direction;
+
+  const _DecorCircle({
+    required this.size,
+    required this.baseDx,
+    required this.baseDy,
+    required this.color,
+    required this.speed,
+    required this.direction,
+  });
 }
