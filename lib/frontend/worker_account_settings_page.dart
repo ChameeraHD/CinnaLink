@@ -47,7 +47,7 @@ class _WorkerAccountSettingsPageState extends State<WorkerAccountSettingsPage> {
       'updatedAt': FieldValue.serverTimestamp(),
     };
     await AuthService.updateCurrentUserProfile(updates);
-    
+
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Settings saved successfully!')),
@@ -144,9 +144,9 @@ class _WorkerAccountSettingsPageState extends State<WorkerAccountSettingsPage> {
         return;
       }
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Logout failed: $error')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Logout failed: $error')));
     } finally {
       if (mounted) {
         setState(() {
@@ -160,8 +160,8 @@ class _WorkerAccountSettingsPageState extends State<WorkerAccountSettingsPage> {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final shellTopColors = isDark
-        ? const [Color(0xFF0E1D1A), Color(0xFF1A3A35)]
-        : const [Colors.teal, Colors.tealAccent];
+        ? const [Color(0xFF0D1B17), Color(0xFF19352A)]
+        : const [Colors.brown, Colors.orangeAccent];
     final tileColor = isDark ? const Color(0xFF0F2F2B) : Colors.grey.shade50;
 
     return Container(
@@ -256,7 +256,9 @@ class _WorkerAccountSettingsPageState extends State<WorkerAccountSettingsPage> {
                                 'Delete Account',
                                 style: TextStyle(color: Colors.red),
                               ),
-                              subtitle: const Text('Permanently delete your account'),
+                              subtitle: const Text(
+                                'Permanently delete your account',
+                              ),
                               trailing: Icon(
                                 Icons.delete_outline,
                                 color: Colors.red,

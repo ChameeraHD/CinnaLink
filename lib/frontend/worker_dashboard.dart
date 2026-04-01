@@ -1012,6 +1012,12 @@ class _FindJobsPageState extends State<FindJobsPage> {
                                                             hasApplied
                                                                 ? 'Applied'
                                                                 : 'Apply Now',
+                                                            style: TextStyle(
+                                                              color: hasApplied
+                                                                  ? Colors.brown
+                                                                  : Colors
+                                                                        .white,
+                                                            ),
                                                           ),
                                                   ),
                                                 ),
@@ -3244,11 +3250,14 @@ class _ApprovedJobsPageState extends State<ApprovedJobsPage> {
                                                       ),
                                                       label: const Text(
                                                         'Record Daily Progress',
+                                                        style: TextStyle(
+                                                          color: Colors.brown,
+                                                        ),
                                                       ),
                                                       style:
                                                           ElevatedButton.styleFrom(
                                                             backgroundColor:
-                                                                Colors.blue,
+                                                                Colors.brown,
                                                           ),
                                                     ),
                                                   ),
@@ -4283,7 +4292,12 @@ class _WorkerDetailsPageState extends State<WorkerDetailsPage> {
                               child: ElevatedButton(
                                 onPressed: _updateProfile,
                                 style: ElevatedButton.styleFrom(
-                                  backgroundColor: Colors.blueAccent,
+                                  backgroundColor: const Color.fromARGB(
+                                    255,
+                                    173,
+                                    110,
+                                    26,
+                                  ),
                                   shape: RoundedRectangleBorder(
                                     borderRadius: BorderRadius.circular(12),
                                   ),

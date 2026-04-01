@@ -177,9 +177,9 @@ class _JobPostingPageState extends State<JobPostingPage> {
         return;
       }
       final message = error.toString().replaceFirst('Bad state: ', '').trim();
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(message)),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(message)));
     } finally {
       if (mounted) {
         setState(() {
@@ -310,18 +310,23 @@ class _JobPostingPageState extends State<JobPostingPage> {
                           runSpacing: 8,
                           children: [
                             Text('${l10n.jobType}: ${job.jobType}'),
-                            Text('${l10n.workersNeeded}: ${job.requiredWorkers}'),
+                            Text(
+                              '${l10n.workersNeeded}: ${job.requiredWorkers}',
+                            ),
                             Text('Estimated Time: ${job.estimatedDays} day(s)'),
                             Text(
                               '${l10n.payment}: LKR ${job.paymentRate.toStringAsFixed(0)}',
                             ),
-                            Text('${l10n.startDate}: ${_formatDate(job.startDate)}'),
+                            Text(
+                              '${l10n.startDate}: ${_formatDate(job.startDate)}',
+                            ),
                             Text(
                               'Estimated End Date: ${_formatDate(job.startDate.add(Duration(days: job.estimatedDays > 0 ? job.estimatedDays - 1 : 0)))}',
                             ),
                           ],
                         ),
-                        if (!(job.applicantCount == 0 && job.status == 'open')) ...[
+                        if (!(job.applicantCount == 0 &&
+                            job.status == 'open')) ...[
                           const SizedBox(height: 8),
                           const Text(
                             'Delete is available only before anyone applies.',
@@ -414,7 +419,7 @@ class _JobPostingPageState extends State<JobPostingPage> {
                           ),
                           const SizedBox(height: 16),
                           DropdownButtonFormField<String>(
-                            value: _jobType,
+                            initialValue: _jobType,
                             hint: Text(l10n.selectJobType),
                             decoration: InputDecoration(
                               labelText: l10n.jobType,
@@ -540,7 +545,8 @@ class _JobPostingPageState extends State<JobPostingPage> {
                               hintText: 'e.g. 5',
                               prefixIcon: const Icon(Icons.timelapse),
                               border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(12)),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
                               filled: true,
                               fillColor: inputFill,
                             ),
@@ -606,7 +612,7 @@ class _JobPostingPageState extends State<JobPostingPage> {
                             child: ElevatedButton(
                               onPressed: _isSubmitting ? null : _submitJob,
                               style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.green,
+                                backgroundColor: Colors.brown,
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(12),
                                 ),

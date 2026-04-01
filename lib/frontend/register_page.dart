@@ -16,7 +16,8 @@ class _RegisterPageState extends State<RegisterPage> {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _phoneController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
-  final TextEditingController _confirmPasswordController = TextEditingController();
+  final TextEditingController _confirmPasswordController =
+      TextEditingController();
   String _selectedRole = 'worker';
   bool _isLoading = false;
   String? _emailErrorText;
@@ -54,7 +55,11 @@ class _RegisterPageState extends State<RegisterPage> {
     final password = _passwordController.text;
     final confirmPassword = _confirmPasswordController.text;
 
-    if (name.isEmpty || email.isEmpty || phone.isEmpty || password.isEmpty || confirmPassword.isEmpty) {
+    if (name.isEmpty ||
+        email.isEmpty ||
+        phone.isEmpty ||
+        password.isEmpty ||
+        confirmPassword.isEmpty) {
       messenger.showSnackBar(
         const SnackBar(content: Text('Please fill in all fields.')),
       );
@@ -77,7 +82,9 @@ class _RegisterPageState extends State<RegisterPage> {
 
     if (password.length < 6) {
       messenger.showSnackBar(
-        const SnackBar(content: Text('Password must be at least 6 characters.')),
+        const SnackBar(
+          content: Text('Password must be at least 6 characters.'),
+        ),
       );
       return;
     }
@@ -93,8 +100,8 @@ class _RegisterPageState extends State<RegisterPage> {
 
     // Normalize phone before saving and OTP send (strict E.164).
     final formattedPhone = phoneDigits.startsWith('94')
-      ? '+$phoneDigits'
-      : phoneDigits.startsWith('0')
+        ? '+$phoneDigits'
+        : phoneDigits.startsWith('0')
         ? '+94${phoneDigits.substring(1)}'
         : '+94$phoneDigits';
 
@@ -119,7 +126,9 @@ class _RegisterPageState extends State<RegisterPage> {
       if (mounted) {
         messenger.showSnackBar(
           const SnackBar(
-            content: Text('No internet connection. Please check your network and try again.'),
+            content: Text(
+              'No internet connection. Please check your network and try again.',
+            ),
             duration: Duration(seconds: 5),
           ),
         );
@@ -140,8 +149,9 @@ class _RegisterPageState extends State<RegisterPage> {
     if (isPhoneTaken || isEmailTaken) {
       if (mounted) {
         setState(() {
-          _phoneErrorText =
-              isPhoneTaken ? 'This phone number is already used.' : null;
+          _phoneErrorText = isPhoneTaken
+              ? 'This phone number is already used.'
+              : null;
           _emailErrorText = isEmailTaken ? 'This email is already used.' : null;
           _isLoading = false;
         });
@@ -163,7 +173,8 @@ class _RegisterPageState extends State<RegisterPage> {
       debugPrint('Registration completed successfully');
 
       if (mounted) {
-        final emailLinkSent = await AuthService.sendVerificationEmailToCurrentUser();
+        final emailLinkSent =
+            await AuthService.sendVerificationEmailToCurrentUser();
 
         await AuthService.signOut();
 
@@ -211,9 +222,7 @@ class _RegisterPageState extends State<RegisterPage> {
         default:
           message = 'Registration failed: ${e.message ?? 'Unknown error'}';
       }
-      messenger.showSnackBar(
-        SnackBar(content: Text(message)),
-      );
+      messenger.showSnackBar(SnackBar(content: Text(message)));
     } catch (e) {
       final text = e.toString();
       if (text.contains('This phone number is already used.')) {
@@ -240,16 +249,18 @@ class _RegisterPageState extends State<RegisterPage> {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final shellTopColors = isDark
-        ? const [Color(0xFF0A1630), Color(0xFF123A6D)]
-        : const [Colors.blueAccent, Colors.lightBlueAccent];
+        ? const [Color(0xFF1D316B), Color(0xFF8469E8)]
+        : const [const Color(0xFF1D316B), Color.fromARGB(255, 143, 116, 239)];
     final cardColor = isDark ? const Color(0xFF0F233F) : Colors.white;
-    final titleColor = isDark ? const Color(0xFF79B6FF) : Colors.blueAccent;
+    final titleColor = isDark
+        ? const Color(0xFF8469E8)
+        : const Color(0xFF8469E8);
     final subtitleColor = isDark ? Colors.white70 : Colors.grey;
     final inputFill = isDark ? const Color(0xFF1A355B) : Colors.grey.shade100;
     final inputTextColor = isDark ? Colors.white : Colors.black87;
     final inputHintColor = isDark ? Colors.white60 : Colors.black54;
     final inputIconColor = isDark ? const Color(0xFF9ACBFF) : Colors.black54;
-    final buttonColor = isDark ? const Color(0xFF2E80F0) : Colors.blueAccent;
+    final buttonColor = const Color(0xFF8469E8);
 
     return Scaffold(
       body: Container(
@@ -276,11 +287,7 @@ class _RegisterPageState extends State<RegisterPage> {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(
-                        Icons.person_add,
-                        size: 80,
-                        color: titleColor,
-                      ),
+                      Icon(Icons.person_add, size: 80, color: titleColor),
                       const SizedBox(height: 16),
                       Text(
                         'Create Account',
@@ -293,10 +300,7 @@ class _RegisterPageState extends State<RegisterPage> {
                       const SizedBox(height: 8),
                       Text(
                         'Join CinnaLink',
-                        style: TextStyle(
-                          fontSize: 18,
-                          color: subtitleColor,
-                        ),
+                        style: TextStyle(fontSize: 18, color: subtitleColor),
                       ),
                       const SizedBox(height: 32),
                       TextField(
@@ -391,7 +395,10 @@ class _RegisterPageState extends State<RegisterPage> {
                           labelText: 'Confirm Password',
                           labelStyle: TextStyle(color: inputHintColor),
                           hintStyle: TextStyle(color: inputHintColor),
-                          prefixIcon: Icon(Icons.lock_outline, color: inputIconColor),
+                          prefixIcon: Icon(
+                            Icons.lock_outline,
+                            color: inputIconColor,
+                          ),
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
                           ),
@@ -404,7 +411,9 @@ class _RegisterPageState extends State<RegisterPage> {
                       DropdownButtonFormField<String>(
                         initialValue: _selectedRole,
                         style: TextStyle(color: inputTextColor),
-                        dropdownColor: isDark ? const Color(0xFF1A355B) : Colors.white,
+                        dropdownColor: isDark
+                            ? const Color(0xFF1A355B)
+                            : Colors.white,
                         decoration: InputDecoration(
                           labelText: 'I am a',
                           labelStyle: TextStyle(color: inputHintColor),
@@ -419,11 +428,17 @@ class _RegisterPageState extends State<RegisterPage> {
                         items: [
                           DropdownMenuItem(
                             value: 'worker',
-                            child: Text('Worker', style: TextStyle(color: inputTextColor)),
+                            child: Text(
+                              'Worker',
+                              style: TextStyle(color: inputTextColor),
+                            ),
                           ),
                           DropdownMenuItem(
                             value: 'landowner',
-                            child: Text('Landowner', style: TextStyle(color: inputTextColor)),
+                            child: Text(
+                              'Landowner',
+                              style: TextStyle(color: inputTextColor),
+                            ),
                           ),
                         ],
                         onChanged: (value) {
@@ -487,8 +502,8 @@ class _RegisterPageState extends State<RegisterPage> {
                           'Already have an account? Login',
                           style: TextStyle(
                             color: isDark
-                                ? const Color(0xFF9ACBFF)
-                                : Colors.blueAccent,
+                                ? Color(0xFF8469E8)
+                                : Color(0xFF1D316B),
                           ),
                         ),
                       ),

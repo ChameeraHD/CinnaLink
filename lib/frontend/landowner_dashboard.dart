@@ -413,7 +413,7 @@ class _WorkerApplicationsPageState extends State<WorkerApplicationsPage> {
                                       status: 'approved',
                                     ),
                               style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.green,
+                                backgroundColor: Colors.brown,
                               ),
                               child: isBusy
                                   ? const SizedBox(
