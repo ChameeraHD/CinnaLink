@@ -612,7 +612,12 @@ class _JobPostingPageState extends State<JobPostingPage> {
                             child: ElevatedButton(
                               onPressed: _isSubmitting ? null : _submitJob,
                               style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.brown,
+                                backgroundColor: const Color.fromARGB(
+                                  255,
+                                  175,
+                                  101,
+                                  41,
+                                ),
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(12),
                                 ),

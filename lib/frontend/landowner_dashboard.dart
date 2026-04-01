@@ -604,7 +604,9 @@ class _WorkerApplicationsPageState extends State<WorkerApplicationsPage> {
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bodyColor = isDark ? const Color(0xFF18130F) : Colors.white;
+    final shellTopColors = isDark
+        ? const [Color(0xFF1A130F), Color(0xFF352417)]
+        : const [Color(0xFF8D5A2B), Color(0xFFC58A45)];
 
     return Scaffold(
       backgroundColor: const Color(0xFF8D5A2B),

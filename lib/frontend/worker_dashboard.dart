@@ -641,8 +641,8 @@ class _FindJobsPageState extends State<FindJobsPage> {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final shellTopColors = isDark
-        ? const [Color(0xFF0D1B17), Color(0xFF19352A)]
-        : const [Colors.brown, Colors.orangeAccent];
+        ? const [Color(0xFF1A130F), Color(0xFF352417)]
+        : const [Color(0xFF8D5A2B), Color(0xFFC58A45)];
     final shellSurfaceColor = isDark ? const Color(0xFF101917) : Colors.white;
 
     return Container(
@@ -2926,8 +2926,8 @@ class _ApprovedJobsPageState extends State<ApprovedJobsPage> {
     final workerId = AuthService.currentUserId;
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final shellTopColors = isDark
-        ? const [Color(0xFF0D1B17), Color(0xFF19352A)]
-        : const [Colors.brown, Colors.orangeAccent];
+        ? const [Color(0xFF1A130F), Color(0xFF352417)]
+        : const [Color(0xFF8D5A2B), Color(0xFFC58A45)];
     final shellSurfaceColor = isDark ? const Color(0xFF101917) : Colors.white;
 
     return Container(
@@ -4173,8 +4173,8 @@ class _WorkerDetailsPageState extends State<WorkerDetailsPage> {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final shellTopColors = isDark
-        ? const [Color(0xFF0D1B17), Color(0xFF19352A)]
-        : const [Colors.brown, Colors.orangeAccent];
+        ? const [Color(0xFF1A130F), Color(0xFF352417)]
+        : const [Color(0xFF8D5A2B), Color(0xFFC58A45)];
     final inputFill = isDark ? const Color(0xFF1A262A) : Colors.grey.shade50;
     final groupTileColor = isDark
         ? const Color(0xFF14201D)

@@ -160,8 +160,8 @@ class _WorkerAccountSettingsPageState extends State<WorkerAccountSettingsPage> {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final shellTopColors = isDark
-        ? const [Color(0xFF0D1B17), Color(0xFF19352A)]
-        : const [Colors.brown, Colors.orangeAccent];
+        ? const [Color(0xFF1A130F), Color(0xFF352417)]
+        : const [Color(0xFF8D5A2B), Color(0xFFC58A45)];
     final tileColor = isDark ? const Color(0xFF0F2F2B) : Colors.grey.shade50;
 
     return Container(
