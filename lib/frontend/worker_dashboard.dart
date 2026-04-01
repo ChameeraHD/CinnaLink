@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:table_calendar/table_calendar.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../backend/auth.dart';
 import '../backend/job_repository.dart';
 import 'profile_reviews_section.dart';
@@ -220,6 +221,14 @@ class _FindJobsPageState extends State<FindJobsPage> {
         );
       },
     );
+  }
+
+  Future<void> _makePhoneCall(String phone) async {
+    final Uri url = Uri(scheme: 'tel', path: phone);
+
+    if (await canLaunchUrl(url)) {
+      await launchUrl(url);
+    }
   }
 
   Future<void> _applyForJob(JobRecord job) async {
@@ -872,6 +881,55 @@ class _FindJobsPageState extends State<FindJobsPage> {
                                                     const SizedBox(width: 4),
                                                     Text(
                                                       '${job.requiredWorkers} workers',
+                                                    ),
+                                                  ],
+                                                ),
+                                                Row(
+                                                  mainAxisSize:
+                                                      MainAxisSize.min,
+                                                  children: [
+                                                    const Icon(
+                                                      Icons.phone,
+                                                      size: 16,
+                                                      color: Colors.grey,
+                                                    ),
+                                                    const Text('Landowner: '),
+                                                    const SizedBox(width: 4),
+                                                    InkWell(
+                                                      onTap:
+                                                          job.landownerPhone
+                                                              .trim()
+                                                              .isNotEmpty
+                                                          ? () => _makePhoneCall(
+                                                              job.landownerPhone,
+                                                            )
+                                                          : null,
+                                                      child: Text(
+                                                        job.landownerPhone
+                                                                .trim()
+                                                                .isNotEmpty
+                                                            ? job.landownerPhone
+                                                                  .trim()
+                                                            : 'N/A',
+                                                        style: TextStyle(
+                                                          color:
+                                                              job.landownerPhone
+                                                                  .trim()
+                                                                  .isNotEmpty
+                                                              ? Colors.blue
+                                                              : Colors.grey,
+                                                          decoration:
+                                                              job.landownerPhone
+                                                                  .trim()
+                                                                  .isNotEmpty
+                                                              ? TextDecoration
+                                                                    .underline
+                                                              : TextDecoration
+                                                                    .none,
+                                                          fontWeight:
+                                                              FontWeight.w500,
+                                                        ),
+                                                      ),
                                                     ),
                                                   ],
                                                 ),
@@ -2862,8 +2920,8 @@ class _ApprovedJobsPageState extends State<ApprovedJobsPage> {
     final workerId = AuthService.currentUserId;
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final shellTopColors = isDark
-        ? const [Color(0xFF0F1B18), Color(0xFF1D3A2F)]
-        : const [Colors.greenAccent, Colors.lightGreenAccent];
+        ? const [Color(0xFF0D1B17), Color(0xFF19352A)]
+        : const [Colors.brown, Colors.orangeAccent];
     final shellSurfaceColor = isDark ? const Color(0xFF101917) : Colors.white;
 
     return Container(
@@ -4106,8 +4164,8 @@ class _WorkerDetailsPageState extends State<WorkerDetailsPage> {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final shellTopColors = isDark
-        ? const [Color(0xFF0E171A), Color(0xFF15363A)]
-        : const [Colors.blueAccent, Colors.lightBlueAccent];
+        ? const [Color(0xFF0D1B17), Color(0xFF19352A)]
+        : const [Colors.brown, Colors.orangeAccent];
     final inputFill = isDark ? const Color(0xFF1A262A) : Colors.grey.shade50;
     final groupTileColor = isDark
         ? const Color(0xFF14201D)

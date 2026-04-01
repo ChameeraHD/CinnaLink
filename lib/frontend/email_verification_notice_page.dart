@@ -22,7 +22,8 @@ class EmailVerificationNoticePage extends StatefulWidget {
       _EmailVerificationNoticePageState();
 }
 
-class _EmailVerificationNoticePageState extends State<EmailVerificationNoticePage> {
+class _EmailVerificationNoticePageState
+    extends State<EmailVerificationNoticePage> {
   bool _isResending = false;
 
   Future<void> _backToLogin() async {
@@ -77,7 +78,9 @@ class _EmailVerificationNoticePageState extends State<EmailVerificationNoticePag
     if (password == null || password.isEmpty) {
       messenger.showSnackBar(
         const SnackBar(
-          content: Text('Please log in again to resend the verification email.'),
+          content: Text(
+            'Please log in again to resend the verification email.',
+          ),
         ),
       );
       return;
@@ -118,7 +121,9 @@ class _EmailVerificationNoticePageState extends State<EmailVerificationNoticePag
       }
       messenger.showSnackBar(
         const SnackBar(
-          content: Text('Could not resend right now. Please try logging in again.'),
+          content: Text(
+            'Could not resend right now. Please try logging in again.',
+          ),
         ),
       );
     } finally {

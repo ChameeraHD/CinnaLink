@@ -14,6 +14,7 @@ class JobRecord {
     required this.status,
     required this.landownerId,
     required this.landownerName,
+    required this.landownerPhone,
     required this.applicantCount,
     required this.groupApplicantCount,
     required this.createdAt,
@@ -32,6 +33,7 @@ class JobRecord {
   final String status;
   final String landownerId;
   final String landownerName;
+  final String landownerPhone;
   final int applicantCount;
   final int groupApplicantCount;
   final DateTime? createdAt;
@@ -54,14 +56,13 @@ class JobRecord {
       status: (data['status'] as String?) ?? 'open',
       landownerId: (data['landownerId'] as String?) ?? '',
       landownerName: (data['landownerName'] as String?) ?? 'Unknown landowner',
+      landownerPhone: (data['phone'] as String?) ?? '',
       applicantCount: ((data['applicantCount'] as num?) ?? 0).toInt(),
       groupApplicantCount: ((data['groupApplicantCount'] as num?) ?? 0).toInt(),
       createdAt: (data['createdAt'] as Timestamp?)?.toDate(),
       updatedAt: (data['updatedAt'] as Timestamp?)?.toDate(),
     );
   }
-
-  get phoneNumber => null;
 }
 
 class WorkerApplicationRecord {
