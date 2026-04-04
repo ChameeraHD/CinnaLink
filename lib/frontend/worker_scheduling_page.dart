@@ -14,12 +14,9 @@ class WorkerSchedulingPage extends StatefulWidget {
 class _WorkerSchedulingPageState extends State<WorkerSchedulingPage> {
   final WorkerSchedulingController _controller =
       const WorkerSchedulingController();
-  String? _actionApplicationId;
   final Set<String> _ratingSubmitting = <String>{};
   final Map<String, bool> _ratedWorkers =
       {}; // Track which workers have been rated
-  final Map<String, Future<List<String>>> _groupMemberNamesFutures =
-      <String, Future<List<String>>>{};
 
   @override
   void initState() {
@@ -29,120 +26,6 @@ class _WorkerSchedulingPageState extends State<WorkerSchedulingPage> {
       JobRepository.expirePendingApprovalsForLandowner(landownerId);
       // Migrate existing jobs with accepted applications to 'accepted' status
       JobRepository.migrateAcceptedJobsStatus();
-    }
-  }
-
-  Future<void> _updateApplicationStatus({
-    required String applicationId,
-    required String status,
-  }) async {
-    setState(() {
-      _actionApplicationId = applicationId;
-    });
-
-    try {
-      await _controller.updateApplicationStatus(
-        applicationId: applicationId,
-        status: status,
-      );
-
-      if (!mounted) {
-        return;
-      }
-
-      final statusLabel = status == 'approved' ? 'approved' : 'rejected';
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Application $statusLabel successfully.')),
-      );
-    } catch (error) {
-      if (!mounted) {
-        return;
-      }
-
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(_controller.readableError(error))));
-    } finally {
-      if (mounted) {
-        setState(() {
-          _actionApplicationId = null;
-        });
-      }
-    }
-  }
-
-  Future<void> _updateGroupApplicationStatus({
-    required String groupApplicationId,
-    required String status,
-  }) async {
-    setState(() {
-      _actionApplicationId = groupApplicationId;
-    });
-
-    try {
-      await _controller.updateGroupApplicationStatus(
-        groupApplicationId: groupApplicationId,
-        status: status,
-      );
-
-      if (!mounted) {
-        return;
-      }
-
-      final statusLabel = status == 'approved' ? 'approved' : 'rejected';
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Group application $statusLabel successfully.')),
-      );
-    } catch (error) {
-      if (!mounted) {
-        return;
-      }
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(_controller.readableError(error))));
-    } finally {
-      if (mounted) {
-        setState(() {
-          _actionApplicationId = null;
-        });
-      }
-    }
-  }
-
-  Future<void> _acceptGroupApplication({
-    required String landownerId,
-    required String groupApplicationId,
-  }) async {
-    setState(() {
-      _actionApplicationId = groupApplicationId;
-    });
-
-    try {
-      await _controller.acceptGroupApplication(
-        landownerId: landownerId,
-        groupApplicationId: groupApplicationId,
-      );
-
-      if (!mounted) {
-        return;
-      }
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Group accepted and schedules created.')),
-      );
-    } catch (error) {
-      if (!mounted) {
-        return;
-      }
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(_controller.readableError(error))));
-    } finally {
-      if (mounted) {
-        setState(() {
-          _actionApplicationId = null;
-        });
-      }
     }
   }
 
@@ -157,52 +40,6 @@ class _WorkerSchedulingPageState extends State<WorkerSchedulingPage> {
     return startDate.add(Duration(days: inclusiveDays));
   }
 
-  Color _statusColor(String status) {
-    switch (status) {
-      case 'approved':
-        return Colors.green;
-      case 'accepted':
-        return Colors.blue;
-      case 'in_progress':
-        return Colors.orange;
-      case 'completed':
-        return Colors.purple;
-      case 'rejected':
-      case 'expired':
-        return Colors.red;
-      default:
-        return Colors.orange;
-    }
-  }
-
-  String _decisionWindowLabel(DateTime? deadline) {
-    if (deadline == null) {
-      return 'No deadline';
-    }
-    return 'Decision deadline: ${_formatDate(deadline)}';
-  }
-
-  String _applicationStatusLabel(String status) {
-    switch (status) {
-      case 'submitted':
-        return 'Under Review';
-      case 'approved':
-        return 'Approved';
-      case 'accepted':
-        return 'Accepted';
-      case 'in_progress':
-        return 'In Progress';
-      case 'completed':
-        return 'Completed';
-      case 'rejected':
-        return 'Rejected';
-      case 'expired':
-        return 'Expired';
-      default:
-        return status;
-    }
-  }
-
   String _jobStatusLabel(String status) {
     switch (status) {
       case 'open':
@@ -214,43 +51,6 @@ class _WorkerSchedulingPageState extends State<WorkerSchedulingPage> {
       default:
         return status;
     }
-  }
-
-  String _groupStatusLabel(String status) {
-    switch (status) {
-      case 'submitted':
-        return 'Under Review';
-      case 'approved':
-        return 'Approved';
-      case 'accepted':
-        return 'Accepted';
-      case 'in_progress':
-        return 'In Progress';
-      case 'completed':
-        return 'Completed';
-      case 'rejected':
-        return 'Rejected';
-      case 'declined_by_group':
-        return 'Declined by Group';
-      default:
-        return status;
-    }
-  }
-
-  Future<List<String>> _resolveGroupMemberNames(
-    GroupJobApplicationRecord application,
-  ) {
-    if (application.memberNames.isNotEmpty) {
-      return Future<List<String>>.value(application.memberNames);
-    }
-
-    return _groupMemberNamesFutures.putIfAbsent(
-      application.id,
-      () => JobRepository.fetchGroupMemberNames(
-        groupId: application.groupId,
-        fallbackMemberIds: application.memberIds,
-      ),
-    );
   }
 
   Future<void> _showWorkerRatingDialog({
@@ -398,156 +198,6 @@ class _WorkerSchedulingPageState extends State<WorkerSchedulingPage> {
     );
   }
 
-  Future<void> _showGroupRatingDialog({
-    required GroupJobApplicationRecord application,
-  }) async {
-    final landownerId = AuthService.currentUserId;
-    if (landownerId == null) {
-      return;
-    }
-
-    final profile = await AuthService.getCurrentUserProfile();
-    final landownerName =
-        (profile?['name'] as String?)?.trim().isNotEmpty == true
-        ? (profile?['name'] as String)
-        : 'Landowner';
-
-    if (!mounted) {
-      return;
-    }
-
-    final feedbackController = TextEditingController();
-    double selectedRating = 5.0;
-
-    await showDialog<void>(
-      context: context,
-      barrierDismissible: false,
-      builder: (dialogContext) {
-        return StatefulBuilder(
-          builder: (context, setDialogState) {
-            final isSubmitting = _ratingSubmitting.contains(application.id);
-            return AlertDialog(
-              title: const Text('Rate Group Members'),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    'This rating will be submitted to all members of "${application.groupName}" (${application.memberIds.length} workers).',
-                  ),
-                  const SizedBox(height: 16),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: List.generate(5, (index) {
-                      final starRating = index + 1.0;
-                      return Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 4),
-                        child: GestureDetector(
-                          onTap: isSubmitting
-                              ? null
-                              : () {
-                                  setDialogState(() {
-                                    selectedRating = starRating;
-                                  });
-                                },
-                          child: Icon(
-                            Icons.star,
-                            size: 34,
-                            color: starRating <= selectedRating
-                                ? Colors.amber
-                                : Colors.grey[300],
-                          ),
-                        ),
-                      );
-                    }),
-                  ),
-                  const SizedBox(height: 16),
-                  TextField(
-                    controller: feedbackController,
-                    maxLines: 3,
-                    decoration: const InputDecoration(
-                      labelText: 'Feedback (optional)',
-                      hintText: 'Share your experience with this group...',
-                      border: OutlineInputBorder(),
-                    ),
-                  ),
-                ],
-              ),
-              actions: [
-                TextButton(
-                  onPressed: isSubmitting
-                      ? null
-                      : () => Navigator.of(dialogContext).pop(),
-                  child: const Text('Cancel'),
-                ),
-                ElevatedButton(
-                  onPressed: isSubmitting
-                      ? null
-                      : () async {
-                          final messenger = ScaffoldMessenger.of(this.context);
-                          setState(() {
-                            _ratingSubmitting.add(application.id);
-                          });
-
-                          try {
-                            final result =
-                                await JobRepository.submitRatingToGroupMembers(
-                                  landownerId: landownerId,
-                                  landownerName: landownerName,
-                                  groupApplicationId: application.id,
-                                  rating: selectedRating,
-                                  feedback: feedbackController.text.trim(),
-                                );
-
-                            if (!mounted) {
-                              return;
-                            }
-
-                            Navigator.of(this.context).pop();
-                            final submitted = result['submitted'] ?? 0;
-                            final skipped = result['skipped'] ?? 0;
-                            messenger.showSnackBar(
-                              SnackBar(
-                                content: Text(
-                                  'Submitted to $submitted member(s). Skipped $skipped already-rated member(s).',
-                                ),
-                              ),
-                            );
-                          } catch (error) {
-                            if (!mounted) {
-                              return;
-                            }
-                            messenger.showSnackBar(
-                              SnackBar(
-                                content: Text(_controller.readableError(error)),
-                              ),
-                            );
-                          } finally {
-                            if (mounted) {
-                              setState(() {
-                                _ratingSubmitting.remove(application.id);
-                              });
-                            }
-                          }
-                        },
-                  child: isSubmitting
-                      ? const SizedBox(
-                          height: 18,
-                          width: 18,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: Colors.white,
-                          ),
-                        )
-                      : const Text('Submit Group Rating'),
-                ),
-              ],
-            );
-          },
-        );
-      },
-    );
-  }
-
   Future<bool> _checkIfWorkerRated({
     required String landownerId,
     required String workerId,
@@ -614,49 +264,6 @@ class _WorkerSchedulingPageState extends State<WorkerSchedulingPage> {
         ),
         Text(title, style: TextStyle(fontSize: 12, color: Colors.grey[600])),
       ],
-    );
-  }
-
-  Widget _buildWorkerRating(String workerId) {
-    return FutureBuilder<Map<String, dynamic>>(
-      future: JobRepository.getWorkerMetrics(workerId),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const SizedBox(height: 0);
-        }
-
-        if (snapshot.hasError || !snapshot.hasData) {
-          return const SizedBox(height: 0);
-        }
-
-        final metrics = snapshot.data ?? {};
-        final avgRating = (metrics['averageRating'] as num?)?.toDouble() ?? 0;
-        final totalRatings = (metrics['totalRatings'] as num?)?.toInt() ?? 0;
-
-        if (avgRating == 0) {
-          return const SizedBox(height: 0);
-        }
-
-        return Row(
-          children: [
-            ...List.generate(
-              5,
-              (index) => Icon(
-                Icons.star,
-                size: 14,
-                color: index < avgRating.round()
-                    ? Colors.amber
-                    : Colors.grey[300],
-              ),
-            ),
-            const SizedBox(width: 4),
-            Text(
-              '${avgRating.toStringAsFixed(1)} ($totalRatings)',
-              style: const TextStyle(fontSize: 11, color: Colors.grey),
-            ),
-          ],
-        );
-      },
     );
   }
 

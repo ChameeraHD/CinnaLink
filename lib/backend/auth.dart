@@ -2,7 +2,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 
-
 class AuthService {
   AuthService._();
 
@@ -39,7 +38,9 @@ class AuthService {
       email: email,
       password: password,
     );
-    _debugLog('AuthService: Sign in successful for user: ${credential.user?.uid}');
+    _debugLog(
+      'AuthService: Sign in successful for user: ${credential.user?.uid}',
+    );
     return credential;
   }
 
@@ -56,7 +57,8 @@ class AuthService {
         _debugLog('AuthService: User document does not exist, creating it...');
         await docRef.set({
           'email': user.email ?? '',
-          'role': 'worker', // Default to worker only for completely missing documents
+          'role':
+              'worker', // Default to worker only for completely missing documents
           'createdAt': FieldValue.serverTimestamp(),
           'updatedAt': FieldValue.serverTimestamp(),
         }, SetOptions(merge: true));
@@ -110,7 +112,8 @@ class AuthService {
         final data = doc.data();
         if (data != null) {
           final role = data['role'];
-          if (role is String && (role == 'worker' || role == 'landowner')) {
+          if (role is String &&
+              (role == 'worker' || role == 'landowner' || role == 'admin')) {
             _debugLog('AuthService: Found valid role: $role');
             return role;
           }
@@ -133,6 +136,72 @@ class AuthService {
     }
   }
 
+  /// Ensures the super admin (isurub.dev@gmail.com) is properly configured on first login
+  static Future<void> ensureSuperAdminSetup() async {
+    final user = _auth.currentUser;
+    if (user == null) return;
+
+    const superAdminEmail = 'isurub.dev@gmail.com';
+
+    try {
+      final userDoc = _firestore.collection('users').doc(user.uid);
+      final docSnapshot = await userDoc.get();
+
+      // If this is the super admin email and isSuperAdmin is not set, set it to true
+      if (user.email?.toLowerCase() == superAdminEmail.toLowerCase()) {
+        if (!docSnapshot.exists ||
+            docSnapshot.data()?['isSuperAdmin'] != true) {
+          await userDoc.set({
+            'isSuperAdmin': true,
+            'updatedAt': FieldValue.serverTimestamp(),
+          }, SetOptions(merge: true));
+          _debugLog(
+            'AuthService: Super admin setup completed for $superAdminEmail',
+          );
+        }
+      }
+    } catch (e) {
+      _debugLog('AuthService: Error setting up super admin: $e');
+    }
+  }
+
+  /// Initializes the super admin account if it doesn't exist
+  static Future<void> initializeSuperAdmin() async {
+    const superAdminEmail = 'isurub.dev@gmail.com';
+    const superAdminPassword = '123456';
+
+    try {
+      // Check if super admin user already exists in Firebase Auth
+      final adminUsers = await _auth.fetchSignInMethodsForEmail(
+        superAdminEmail,
+      );
+
+      if (adminUsers.isEmpty) {
+        // Create the super admin account
+        _debugLog('AuthService: Creating super admin account...');
+        final credential = await _auth.createUserWithEmailAndPassword(
+          email: superAdminEmail,
+          password: superAdminPassword,
+        );
+
+        // Create Firestore document for super admin
+        await _firestore.collection('users').doc(credential.user!.uid).set({
+          'email': superAdminEmail,
+          'role': 'admin',
+          'isSuperAdmin': true,
+          'createdAt': FieldValue.serverTimestamp(),
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+
+        _debugLog('AuthService: Super admin account created successfully');
+      } else {
+        _debugLog('AuthService: Super admin account already exists');
+      }
+    } catch (e) {
+      _debugLog('AuthService: Error initializing super admin: $e');
+    }
+  }
+
   /// Creates a Firebase Auth user and a matching Firestore user document.
   static Future<UserCredential> registerUser({
     required String name,
@@ -152,7 +221,9 @@ class AuthService {
       email: email,
       password: password,
     );
-    _debugLog('AuthService: Firebase Auth user created with UID: ${credential.user!.uid}');
+    _debugLog(
+      'AuthService: Firebase Auth user created with UID: ${credential.user!.uid}',
+    );
 
     try {
       await _setUserDocument(
@@ -243,15 +314,17 @@ class AuthService {
         'network-request-failed' =>
           'Network error while sending verification email.',
         'invalid-email' => 'Your email address is invalid.',
-        _ => e.message?.isNotEmpty == true
-            ? e.message
-            : 'Could not send verification email right now.',
+        _ =>
+          e.message?.isNotEmpty == true
+              ? e.message
+              : 'Could not send verification email right now.',
       };
       _lastVerificationEmailSent = false;
       return false;
     } catch (e) {
       _debugLog('AuthService: Failed to send verification email: $e');
-      _lastVerificationEmailError = 'Could not send verification email right now.';
+      _lastVerificationEmailError =
+          'Could not send verification email right now.';
       _lastVerificationEmailSent = false;
       return false;
     }
@@ -273,11 +346,11 @@ class AuthService {
         'invalid-email' => 'Please enter a valid email address.',
         'too-many-requests' =>
           'Too many requests. Please wait a few minutes and try again.',
-        'network-request-failed' =>
-          'Network error while sending reset email.',
-        _ => e.message?.isNotEmpty == true
-            ? e.message
-            : 'Could not send password reset email right now.',
+        'network-request-failed' => 'Network error while sending reset email.',
+        _ =>
+          e.message?.isNotEmpty == true
+              ? e.message
+              : 'Could not send password reset email right now.',
       };
       return false;
     } catch (e) {
@@ -328,7 +401,9 @@ class AuthService {
   }
 
   /// Updates the current user's profile data in Firestore.
-  static Future<void> updateCurrentUserProfile(Map<String, dynamic> updates) async {
+  static Future<void> updateCurrentUserProfile(
+    Map<String, dynamic> updates,
+  ) async {
     final user = _auth.currentUser;
     if (user == null) return;
 
@@ -341,4 +416,3 @@ class AuthService {
     }
   }
 }
-

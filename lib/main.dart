@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'backend/auth.dart';
 import 'backend/job_repository.dart';
 import 'firebase_options.dart';
+import 'frontend/admin_dashboard.dart';
 import 'frontend/landowner_dashboard.dart';
 import 'frontend/login_page.dart';
 import 'frontend/email_verification_notice_page.dart';
@@ -12,6 +13,8 @@ import 'frontend/worker_dashboard.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  // Initialize super admin account on first run
+  await AuthService.initializeSuperAdmin();
   // Auto-decline expired applications on app startup
   await JobRepository.autoDeclineExpiredApplications();
   runApp(const MyApp());
@@ -208,6 +211,7 @@ class AuthGate extends StatelessWidget {
                 errorMessage: AuthService.lastVerificationEmailError,
               );
             }
+            if (role == 'admin') return const AdminDashboard();
             if (role == 'landowner') return const LandownerDashboard();
             return const WorkerDashboard();
           },
