@@ -1419,26 +1419,64 @@ class _ApprovedJobsPageState extends State<ApprovedJobsPage> {
                       ).asMap().entries.map((entry) {
                         final job = entry.value;
                         final color = _getJobColor(job.jobId, entry.key);
+                        final endDate = job.startDate.add(
+                          Duration(
+                            days: job.estimatedDays > 0
+                                ? job.estimatedDays - 1
+                                : 0,
+                          ),
+                        );
                         return Padding(
-                          padding: const EdgeInsets.only(bottom: 8),
-                          child: Row(
-                            children: [
-                              Container(
-                                width: 12,
-                                height: 12,
-                                decoration: BoxDecoration(
-                                  color: color,
-                                  shape: BoxShape.circle,
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              border: Border.all(color: color, width: 2),
+                              borderRadius: BorderRadius.circular(8),
+                              color: color.withValues(alpha: 0.05),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Container(
+                                      width: 12,
+                                      height: 12,
+                                      decoration: BoxDecoration(
+                                        color: color,
+                                        shape: BoxShape.circle,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: Text(
+                                        job.jobTitle,
+                                        style: const TextStyle(
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
                                 ),
-                              ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Text(
-                                  job.jobTitle,
-                                  style: const TextStyle(fontSize: 13),
+                                const SizedBox(height: 8),
+                                _buildDetailRow('Posted by', job.landownerName),
+                                _buildDetailRow('Location', job.location),
+                                _buildDetailRow(
+                                  'Payment Rate',
+                                  'LKR ${job.paymentRate.toStringAsFixed(2)}/day',
                                 ),
-                              ),
-                            ],
+                                _buildDetailRow(
+                                  'Duration',
+                                  '${_formatDate(job.startDate)} to ${_formatDate(endDate)}',
+                                ),
+                                _buildDetailRow(
+                                  'Status',
+                                  job.status.toUpperCase(),
+                                ),
+                              ],
+                            ),
                           ),
                         );
                       }),
@@ -1458,26 +1496,53 @@ class _ApprovedJobsPageState extends State<ApprovedJobsPage> {
                             (schedule['jobTitle'] as String?) ?? 'Group Job';
                         final groupName =
                             (schedule['groupName'] as String?) ?? 'Group';
+                        final startDate = schedule['startDate'] as DateTime?;
+                        final estimatedDays = schedule['estimatedDays'] as int?;
                         return Padding(
-                          padding: const EdgeInsets.only(bottom: 8),
-                          child: Row(
-                            children: [
-                              Container(
-                                width: 12,
-                                height: 12,
-                                decoration: BoxDecoration(
-                                  color: color,
-                                  shape: BoxShape.circle,
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              border: Border.all(color: color, width: 2),
+                              borderRadius: BorderRadius.circular(8),
+                              color: color.withValues(alpha: 0.05),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Container(
+                                      width: 12,
+                                      height: 12,
+                                      decoration: BoxDecoration(
+                                        color: color,
+                                        shape: BoxShape.circle,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: Text(
+                                        '$jobTitle ($groupName)',
+                                        style: const TextStyle(
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
                                 ),
-                              ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Text(
-                                  '$jobTitle ($groupName)',
-                                  style: const TextStyle(fontSize: 13),
-                                ),
-                              ),
-                            ],
+                                if (startDate != null &&
+                                    estimatedDays != null) ...[
+                                  const SizedBox(height: 8),
+                                  _buildDetailRow('Group', groupName),
+                                  _buildDetailRow(
+                                    'Duration',
+                                    '${_formatDate(startDate)} to ${_formatDate(startDate.add(Duration(days: estimatedDays > 0 ? estimatedDays - 1 : 0)))}',
+                                  ),
+                                ],
+                              ],
+                            ),
                           ),
                         );
                       }),
@@ -1487,6 +1552,35 @@ class _ApprovedJobsPageState extends State<ApprovedJobsPage> {
               ),
             ),
           ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDetailRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            flex: 2,
+            child: Text(
+              label,
+              style: TextStyle(
+                fontSize: 12,
+                color: Colors.grey[600],
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+          Expanded(
+            flex: 3,
+            child: Text(
+              value,
+              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
+            ),
+          ),
         ],
       ),
     );
