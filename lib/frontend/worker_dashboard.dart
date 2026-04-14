@@ -1496,8 +1496,10 @@ class _ApprovedJobsPageState extends State<ApprovedJobsPage> {
                             (schedule['jobTitle'] as String?) ?? 'Group Job';
                         final groupName =
                             (schedule['groupName'] as String?) ?? 'Group';
-                        final startDate = schedule['startDate'] as DateTime?;
-                        final estimatedDays = schedule['estimatedDays'] as int?;
+                        final startDate = (schedule['startDate'] as Timestamp?)
+                            ?.toDate();
+                        final estimatedDays =
+                            (schedule['estimatedDays'] as num?)?.toInt();
                         return Padding(
                           padding: const EdgeInsets.only(bottom: 12),
                           child: Container(
