@@ -11,6 +11,8 @@ class AdminAnalyticsPage extends StatefulWidget {
 class _AdminAnalyticsPageState extends State<AdminAnalyticsPage> {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   Map<String, int> _stats = {};
+  bool _isLoading = true;
+  String? _errorMessage;
 
   @override
   void initState() {
@@ -19,35 +21,52 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage> {
   }
 
   Future<void> _loadStats() async {
-    final usersSnapshot = await _firestore.collection('users').get();
-    final jobsSnapshot = await _firestore.collection('jobs').get();
-
-    final users = usersSnapshot.docs;
-    final jobs = jobsSnapshot.docs;
-
-    final roleCounts = <String, int>{};
-    for (final user in users) {
-      final role = user.data()['role'] as String? ?? 'unknown';
-      roleCounts[role] = (roleCounts[role] ?? 0) + 1;
+    if (mounted) {
+      setState(() {
+        _isLoading = true;
+        _errorMessage = null;
+      });
     }
 
-    final statusCounts = <String, int>{};
-    for (final job in jobs) {
-      final status = job.data()['status'] as String? ?? 'unknown';
-      statusCounts[status] = (statusCounts[status] ?? 0) + 1;
-    }
+    try {
+      final usersSnapshot = await _firestore.collection('users').get();
+      final jobsSnapshot = await _firestore.collection('jobs').get();
 
-    setState(() {
-      _stats = {
-        'Total Users': users.length,
-        'Workers': roleCounts['worker'] ?? 0,
-        'Landowners': roleCounts['landowner'] ?? 0,
-        'Admins': roleCounts['admin'] ?? 0,
-        'Total Jobs': jobs.length,
-        'Active Jobs': statusCounts['active'] ?? 0,
-        'Completed Jobs': statusCounts['completed'] ?? 0,
-      };
-    });
+      final users = usersSnapshot.docs;
+      final jobs = jobsSnapshot.docs;
+
+      final roleCounts = <String, int>{};
+      for (final user in users) {
+        final role = user.data()['role'] as String? ?? 'unknown';
+        roleCounts[role] = (roleCounts[role] ?? 0) + 1;
+      }
+
+      final statusCounts = <String, int>{};
+      for (final job in jobs) {
+        final status = job.data()['status'] as String? ?? 'unknown';
+        statusCounts[status] = (statusCounts[status] ?? 0) + 1;
+      }
+
+      if (!mounted) return;
+      setState(() {
+        _stats = {
+          'Total Users': users.length,
+          'Workers': roleCounts['worker'] ?? 0,
+          'Landowners': roleCounts['landowner'] ?? 0,
+          'Admins': roleCounts['admin'] ?? 0,
+          'Total Jobs': jobs.length,
+          'Active Jobs': statusCounts['active'] ?? 0,
+          'Completed Jobs': statusCounts['completed'] ?? 0,
+        };
+        _isLoading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _errorMessage = e.toString();
+        _isLoading = false;
+      });
+    }
   }
 
   @override
@@ -63,6 +82,24 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage> {
               style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 20),
+            if (_isLoading)
+              const Center(
+                child: Padding(
+                  padding: EdgeInsets.symmetric(vertical: 24),
+                  child: CircularProgressIndicator(),
+                ),
+              ),
+            if (_errorMessage != null)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 16),
+                child: Text(
+                  'Analytics unavailable: $_errorMessage',
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.error,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
             _buildStatCard(
               'Total Users',
               _stats['Total Users'] ?? 0,

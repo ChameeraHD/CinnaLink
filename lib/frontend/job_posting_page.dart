@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:cinnalink/l10n/app_localizations.dart'; // Ensure this import exists
 import '../backend/auth.dart';
 import '../backend/job_repository.dart';
-import '../models/job_model.dart';
 
 class JobPostingPage extends StatefulWidget {
   const JobPostingPage({super.key});
@@ -289,7 +288,7 @@ class _JobPostingPageState extends State<JobPostingPage> {
                                 vertical: 6,
                               ),
                               decoration: BoxDecoration(
-                                color: Colors.green.withOpacity(0.1),
+                                color: Colors.green.withValues(alpha: 0.1),
                                 borderRadius: BorderRadius.circular(20),
                               ),
                               child: Text(

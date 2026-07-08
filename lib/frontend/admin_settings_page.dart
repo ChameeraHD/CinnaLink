@@ -80,6 +80,7 @@ class _AdminSettingsPageState extends State<AdminSettingsPage> {
       'darkModeEnabled': _darkModeEnabled,
       'language': _language,
     });
+    if (!mounted) return;
     MyApp.of(context)?.toggleDarkMode(_darkModeEnabled);
   }
 
@@ -495,7 +496,7 @@ class _AdminSettingsPageState extends State<AdminSettingsPage> {
             return RadioListTile<String>(
               title: Text(lang),
               value: lang,
-              groupValue: _language,
+              selected: _language == lang,
               onChanged: (value) {
                 if (value != null) {
                   setState(() => _language = value);

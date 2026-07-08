@@ -142,6 +142,7 @@ class _AdminUserManagementPageState extends State<AdminUserManagementPage>
               await _firestore.collection('users').doc(userId).update({
                 'role': selectedRole,
               });
+              if (!mounted) return;
               Navigator.of(context).pop();
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(content: Text('Role updated successfully')),
@@ -170,6 +171,7 @@ class _AdminUserManagementPageState extends State<AdminUserManagementPage>
           TextButton(
             onPressed: () async {
               await _firestore.collection('users').doc(userId).delete();
+              if (!mounted) return;
               Navigator.of(context).pop();
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(content: Text('User deleted successfully')),

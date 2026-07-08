@@ -149,7 +149,7 @@ class AuthGate extends StatelessWidget {
     return StreamBuilder(
       stream: AuthService.authStateChanges(),
       builder: (context, snapshot) {
-        print(
+        debugPrint(
           'AuthGate: Auth state changed - ConnectionState: ${snapshot.connectionState}, HasData: ${snapshot.hasData}, User: ${snapshot.data?.uid ?? "null"}',
         );
 
@@ -181,10 +181,11 @@ class AuthGate extends StatelessWidget {
               if (savedLang != null) {
                 if (savedLang == 'Tamil') {
                   appState?.setLocale(const Locale('ta'));
-                } else if (savedLang == 'Sinhala')
+                } else if (savedLang == 'Sinhala') {
                   appState?.setLocale(const Locale('si'));
-                else
+                } else {
                   appState?.setLocale(const Locale('en'));
+                }
               }
             }
 

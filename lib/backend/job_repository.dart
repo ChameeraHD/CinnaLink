@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
 
 class JobRecord {
   JobRecord({
@@ -435,7 +436,7 @@ class JobRepository {
         await batch.commit();
       }
     } catch (e) {
-      print('Error auto-declining expired individual applications: $e');
+      debugPrint('Error auto-declining expired individual applications: $e');
     }
   }
 
@@ -465,7 +466,7 @@ class JobRepository {
         await batch.commit();
       }
     } catch (e) {
-      print('Error auto-declining expired group applications: $e');
+      debugPrint('Error auto-declining expired group applications: $e');
     }
   }
 
@@ -608,9 +609,11 @@ class JobRepository {
 
   static Stream<List<TaskProgressRecord>> streamProgressForApplication(
     String applicationId,
+    String workerId,
   ) {
     return _taskProgressCollection
         .where('applicationId', isEqualTo: applicationId)
+        .where('workerId', isEqualTo: workerId)
         .snapshots()
         .map((snapshot) {
           final records = snapshot.docs
@@ -1200,64 +1203,23 @@ class JobRepository {
       throw StateError('Job details are missing for this application.');
     }
 
-    await _firestore.runTransaction((transaction) async {
-      final now = FieldValue.serverTimestamp();
-      final jobRef = _jobsCollection.doc(jobId);
-      final jobSnapshot = await transaction.get(jobRef);
-      final jobData = jobSnapshot.data();
-
-      if (jobData == null) {
-        throw StateError('This job no longer exists.');
-      }
-
-      final progressRef = _taskProgressCollection.doc();
-      transaction.set(progressRef, {
-        'jobId': jobId,
-        'applicationId': applicationId,
-        'groupApplicationId': '',
-        'workerId': workerId,
-        'workerName': applicationData['workerName'] ?? 'Worker',
-        'quillCount': quillCount,
-        'notes': notes,
-        'progressDate': Timestamp.fromDate(DateTime.now()),
-        'createdAt': now,
-      });
-
-      final currentTotal = ((jobData['totalQuillCount'] as num?) ?? 0).toInt();
-      final jobStatus = (jobData['status'] as String?) ?? 'open';
-      final nextJobStatus = jobStatus == 'closed' ? 'closed' : 'in_progress';
-
-      transaction.update(jobRef, {
-        'totalQuillCount': currentTotal + quillCount,
-        'status': nextJobStatus,
-        'updatedAt': now,
-      });
-
-      if (status == 'accepted') {
-        transaction.update(applicationRef, {
-          'status': 'in_progress',
-          'updatedAt': now,
-        });
-      }
-    });
-
-    if (status == 'accepted') {
-      final scheduleSnapshot = await _schedulesCollection
-          .where('applicationId', isEqualTo: applicationId)
-          .get();
-
-      if (scheduleSnapshot.docs.isNotEmpty) {
-        final batch = _firestore.batch();
-        final now = FieldValue.serverTimestamp();
-        for (final doc in scheduleSnapshot.docs) {
-          batch.update(doc.reference, {
-            'status': 'in_progress',
-            'updatedAt': now,
-          });
-        }
-        await batch.commit();
-      }
+    final jobSnapshot = await _jobsCollection.doc(jobId).get();
+    if (!jobSnapshot.exists) {
+      throw StateError('This job no longer exists.');
     }
+
+    final progressRef = _taskProgressCollection.doc();
+    await progressRef.set({
+      'jobId': jobId,
+      'applicationId': applicationId,
+      'groupApplicationId': '',
+      'workerId': workerId,
+      'workerName': applicationData['workerName'] ?? 'Worker',
+      'quillCount': quillCount,
+      'notes': notes,
+      'progressDate': Timestamp.fromDate(DateTime.now()),
+      'createdAt': FieldValue.serverTimestamp(),
+    });
   }
 
   static Future<void> submitGroupDailyProgress({
@@ -1305,64 +1267,23 @@ class JobRepository {
     final workerName = ((workerSnapshot.data()?['name'] as String?) ?? 'Worker')
         .trim();
 
-    await _firestore.runTransaction((transaction) async {
-      final now = FieldValue.serverTimestamp();
-      final jobRef = _jobsCollection.doc(jobId);
-      final jobSnapshot = await transaction.get(jobRef);
-      final jobData = jobSnapshot.data();
-
-      if (jobData == null) {
-        throw StateError('This job no longer exists.');
-      }
-
-      final progressRef = _taskProgressCollection.doc();
-      transaction.set(progressRef, {
-        'jobId': jobId,
-        'applicationId': '',
-        'groupApplicationId': groupApplicationId,
-        'workerId': workerId,
-        'workerName': workerName.isEmpty ? 'Worker' : workerName,
-        'quillCount': quillCount,
-        'notes': notes,
-        'progressDate': Timestamp.fromDate(DateTime.now()),
-        'createdAt': now,
-      });
-
-      final currentTotal = ((jobData['totalQuillCount'] as num?) ?? 0).toInt();
-      final jobStatus = (jobData['status'] as String?) ?? 'open';
-      final nextJobStatus = jobStatus == 'closed' ? 'closed' : 'in_progress';
-
-      transaction.update(jobRef, {
-        'totalQuillCount': currentTotal + quillCount,
-        'status': nextJobStatus,
-        'updatedAt': now,
-      });
-
-      if (status == 'accepted') {
-        transaction.update(groupAppRef, {
-          'status': 'in_progress',
-          'updatedAt': now,
-        });
-      }
-    });
-
-    if (status == 'accepted') {
-      final scheduleSnapshot = await _schedulesCollection
-          .where('groupApplicationId', isEqualTo: groupApplicationId)
-          .get();
-
-      if (scheduleSnapshot.docs.isNotEmpty) {
-        final batch = _firestore.batch();
-        final now = FieldValue.serverTimestamp();
-        for (final doc in scheduleSnapshot.docs) {
-          batch.update(doc.reference, {
-            'status': 'in_progress',
-            'updatedAt': now,
-          });
-        }
-        await batch.commit();
-      }
+    final jobSnapshot = await _jobsCollection.doc(jobId).get();
+    if (!jobSnapshot.exists) {
+      throw StateError('This job no longer exists.');
     }
+
+    final progressRef = _taskProgressCollection.doc();
+    await progressRef.set({
+      'jobId': jobId,
+      'applicationId': '',
+      'groupApplicationId': groupApplicationId,
+      'workerId': workerId,
+      'workerName': workerName.isEmpty ? 'Worker' : workerName,
+      'quillCount': quillCount,
+      'notes': notes,
+      'progressDate': Timestamp.fromDate(DateTime.now()),
+      'createdAt': FieldValue.serverTimestamp(),
+    });
   }
 
   static Future<void> markApplicationCompleted({
@@ -2822,7 +2743,7 @@ class JobRepository {
         await batch.commit();
       }
     } catch (error) {
-      print('Migration error: $error');
+      debugPrint('Migration error: $error');
       rethrow;
     }
   }

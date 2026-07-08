@@ -136,13 +136,14 @@ class _AdminJobManagementPageState extends State<AdminJobManagementPage> {
           TextButton(
             onPressed: () async {
               await _firestore.collection('jobs').doc(jobId).delete();
+              if (!mounted) return;
               Navigator.of(context).pop();
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(content: Text('Job deleted successfully')),
               );
             },
-            child: const Text('Delete'),
             style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Delete'),
           ),
         ],
       ),

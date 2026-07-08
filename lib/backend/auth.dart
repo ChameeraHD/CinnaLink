@@ -150,10 +150,14 @@ class AuthService {
       // If this is the super admin email and isSuperAdmin is not set, set it to true
       if (user.email?.toLowerCase() == superAdminEmail.toLowerCase()) {
         if (!docSnapshot.exists ||
-            docSnapshot.data()?['isSuperAdmin'] != true) {
+            docSnapshot.data()?['isSuperAdmin'] != true ||
+            docSnapshot.data()?['role'] != 'admin') {
           await userDoc.set({
+            'email': superAdminEmail,
+            'role': 'admin',
             'isSuperAdmin': true,
             'updatedAt': FieldValue.serverTimestamp(),
+            if (!docSnapshot.exists) 'createdAt': FieldValue.serverTimestamp(),
           }, SetOptions(merge: true));
           _debugLog(
             'AuthService: Super admin setup completed for $superAdminEmail',
@@ -171,12 +175,14 @@ class AuthService {
     const superAdminPassword = '123456';
 
     try {
-      // Check if super admin user already exists in Firebase Auth
-      final adminUsers = await _auth.fetchSignInMethodsForEmail(
-        superAdminEmail,
-      );
+      // Check if super admin user already exists in Firestore
+      final adminSnapshot = await _firestore
+          .collection('users')
+          .where('email', isEqualTo: superAdminEmail)
+          .limit(1)
+          .get();
 
-      if (adminUsers.isEmpty) {
+      if (adminSnapshot.docs.isEmpty) {
         // Create the super admin account
         _debugLog('AuthService: Creating super admin account...');
         final credential = await _auth.createUserWithEmailAndPassword(
@@ -248,12 +254,17 @@ class AuthService {
       return false;
     }
 
-    final snapshot = await _firestore
-        .collection('users')
-        .where('phone', isEqualTo: trimmedPhone)
-        .limit(1)
-        .get();
-    return snapshot.docs.isNotEmpty;
+    try {
+      final snapshot = await _firestore
+          .collection('users')
+          .where('phone', isEqualTo: trimmedPhone)
+          .limit(1)
+          .get();
+      return snapshot.docs.isNotEmpty;
+    } catch (e) {
+      _debugLog('AuthService: Phone uniqueness check failed: $e');
+      return false;
+    }
   }
 
   static Future<bool> isEmailInUse({required String email}) async {
@@ -262,8 +273,18 @@ class AuthService {
       return false;
     }
 
-    final methods = await _auth.fetchSignInMethodsForEmail(trimmedEmail);
-    return methods.isNotEmpty;
+    try {
+      // Check if email exists in Firestore users collection
+      final snapshot = await _firestore
+          .collection('users')
+          .where('email', isEqualTo: trimmedEmail)
+          .limit(1)
+          .get();
+      return snapshot.docs.isNotEmpty;
+    } catch (e) {
+      _debugLog('AuthService: Email uniqueness check failed: $e');
+      return false;
+    }
   }
 
   static Future<void> _setUserDocument({

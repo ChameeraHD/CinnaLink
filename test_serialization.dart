@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'lib/app_state.dart';
 
 void main() {
@@ -11,13 +12,13 @@ void main() {
   );
 
   final map = user.toMap();
-  print('Map: $map');
+  debugPrint('Map: $map');
 
   final jsonStr = jsonEncode(map);
-  print('Json: $jsonStr');
+  debugPrint('Json: $jsonStr');
 
   final decodedMap = jsonDecode(jsonStr);
   final unmappedUser = AppUser.fromMap(decodedMap);
 
-  print('Successfully parsed: ${unmappedUser.username}');
+  debugPrint('Successfully parsed: ${unmappedUser.username}');
 }

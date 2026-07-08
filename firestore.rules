@@ -1,0 +1,126 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return signedIn() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return signedIn() && (
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isSuperAdmin == true ||
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'
+      );
+    }
+
+    function isLandownerForJob(jobId) {
+      return signedIn()
+        && get(/databases/$(database)/documents/jobs/$(jobId)).data.landownerId == request.auth.uid;
+    }
+
+    function isWorkerForApplication(applicationId) {
+      return signedIn()
+        && get(/databases/$(database)/documents/applications/$(applicationId)).data.workerId == request.auth.uid;
+    }
+
+    function isWorkerForGroupApplication(groupApplicationId) {
+      return signedIn()
+        && get(/databases/$(database)/documents/group_applications/$(groupApplicationId)).data.memberIds.hasAny([request.auth.uid]);
+    }
+
+    function isParticipantForProgress(progressId) {
+      return signedIn()
+        && (
+          resource.data.workerId == request.auth.uid
+          || isLandownerForJob(resource.data.jobId)
+          || isAdmin()
+        );
+    }
+
+    match /users/{userId} {
+      allow create: if isOwner(userId);
+      allow read, update, delete: if isOwner(userId) || isAdmin();
+    }
+
+    match /jobs/{jobId} {
+      allow read: if signedIn();
+      allow create: if signedIn() && request.resource.data.landownerId == request.auth.uid;
+      allow update, delete: if isLandownerForJob(jobId) || isAdmin();
+    }
+
+    match /applications/{applicationId} {
+      allow read: if signedIn() && (
+        resource.data.workerId == request.auth.uid ||
+        resource.data.landownerId == request.auth.uid ||
+        isAdmin()
+      );
+      allow create: if signedIn() && request.resource.data.workerId == request.auth.uid;
+      allow update, delete: if signedIn() && (
+        resource.data.workerId == request.auth.uid ||
+        resource.data.landownerId == request.auth.uid ||
+        isAdmin()
+      );
+    }
+
+    match /group_applications/{groupApplicationId} {
+      allow read: if signedIn() && (
+        resource.data.coordinatorId == request.auth.uid ||
+        resource.data.memberIds.hasAny([request.auth.uid]) ||
+        resource.data.landownerId == request.auth.uid ||
+        isAdmin()
+      );
+      allow create: if signedIn() && request.resource.data.coordinatorId == request.auth.uid;
+      allow update, delete: if signedIn() && (
+        resource.data.coordinatorId == request.auth.uid ||
+        resource.data.landownerId == request.auth.uid ||
+        isAdmin()
+      );
+    }
+
+    match /worker_groups/{groupId} {
+      allow read: if signedIn();
+      allow create: if signedIn() && request.resource.data.coordinatorId == request.auth.uid;
+      allow update, delete: if signedIn() && (
+        resource.data.coordinatorId == request.auth.uid ||
+        isAdmin()
+      );
+    }
+
+    match /task_progress/{progressId} {
+      allow read: if signedIn() && (
+        resource.data.workerId == request.auth.uid ||
+        isLandownerForJob(resource.data.jobId) ||
+        isAdmin()
+      );
+      allow create: if signedIn() && (
+        request.resource.data.workerId == request.auth.uid ||
+        isAdmin()
+      );
+      allow update, delete: if isParticipantForProgress(progressId) || isAdmin();
+    }
+
+    match /schedules/{scheduleId} {
+      allow read: if signedIn();
+      allow create: if signedIn();
+      allow update, delete: if signedIn();
+    }
+
+    match /ratings/{ratingId} {
+      allow read: if signedIn();
+      allow create: if signedIn() && request.resource.data.fromUserId == request.auth.uid;
+      allow update, delete: if signedIn() && (
+        resource.data.fromUserId == request.auth.uid ||
+        resource.data.toUserId == request.auth.uid ||
+        isAdmin()
+      );
+    }
+
+    match /{document=**} {
+      allow read, write: if isAdmin();
+    }
+  }
+}

@@ -250,7 +250,7 @@ class _RegisterPageState extends State<RegisterPage> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final shellTopColors = isDark
         ? const [Color(0xFF1D316B), Color(0xFF8469E8)]
-        : const [const Color(0xFF1D316B), Color.fromARGB(255, 143, 116, 239)];
+        : [Color(0xFF1D316B), Color.fromARGB(255, 143, 116, 239)];
     final cardColor = isDark ? const Color(0xFF0F233F) : Colors.white;
     final titleColor = isDark
         ? const Color(0xFF8469E8)

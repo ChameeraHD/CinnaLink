@@ -219,7 +219,7 @@ class _LoginPageState extends State<LoginPage>
       _colorAnimation1.value ?? const Color(0xFF1D316B),
       _colorAnimation2.value ?? const Color(0xFF8469E8),
     ];
-    final cardColor = Colors.white.withOpacity(0.92);
+    final cardColor = Colors.white.withValues(alpha: 0.92);
     final titleColor = const Color(0xFF2A3A88);
     final subtitleColor = const Color(0xFF5F6EA8);
     final inputFill = const Color(0xFFE8EBFF);
@@ -264,7 +264,7 @@ class _LoginPageState extends State<LoginPage>
                         color: circle.color,
                         boxShadow: [
                           BoxShadow(
-                            color: circle.color.withOpacity(0.25),
+                            color: circle.color.withValues(alpha: 0.25),
                             blurRadius: 14,
                             spreadRadius: 2,
                           ),

@@ -150,8 +150,9 @@ class _AccountSettingsPageState extends State<AccountSettingsPage> {
       await AuthService.signOut();
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Logout failed: $error')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Logout failed: $error')));
     } finally {
       if (mounted) setState(() => _isSigningOut = false);
     }
@@ -227,7 +228,9 @@ class _AccountSettingsPageState extends State<AccountSettingsPage> {
                                   subtitle: const Text('Receive job updates'),
                                   value: _notificationsEnabled,
                                   onChanged: (value) {
-                                    setState(() => _notificationsEnabled = value);
+                                    setState(
+                                      () => _notificationsEnabled = value,
+                                    );
                                   },
                                 ),
                               ),
@@ -249,7 +252,7 @@ class _AccountSettingsPageState extends State<AccountSettingsPage> {
                               ),
                               const SizedBox(height: 12),
                               DropdownButtonFormField<String>(
-                                value: _language,
+                                initialValue: _language,
                                 decoration: InputDecoration(
                                   labelText: l10n.language,
                                   prefixIcon: const Icon(Icons.language),
@@ -285,7 +288,9 @@ class _AccountSettingsPageState extends State<AccountSettingsPage> {
                                   child: Text(
                                     l10n.saveSettings,
                                     style: const TextStyle(
-                                        fontSize: 18, fontWeight: FontWeight.bold),
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.bold,
+                                    ),
                                   ),
                                 ),
                               ),
@@ -296,15 +301,24 @@ class _AccountSettingsPageState extends State<AccountSettingsPage> {
                                   'Delete Account',
                                   style: TextStyle(color: Colors.red),
                                 ),
-                                subtitle: const Text('Permanently remove your account'),
+                                subtitle: const Text(
+                                  'Permanently remove your account',
+                                ),
                                 trailing: _isDeletingAccount
                                     ? const SizedBox(
                                         width: 20,
                                         height: 20,
-                                        child: CircularProgressIndicator(strokeWidth: 2),
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                        ),
                                       )
-                                    : const Icon(Icons.delete_outline, color: Colors.red),
-                                onTap: _isDeletingAccount ? null : _deleteAccount,
+                                    : const Icon(
+                                        Icons.delete_outline,
+                                        color: Colors.red,
+                                      ),
+                                onTap: _isDeletingAccount
+                                    ? null
+                                    : _deleteAccount,
                               ),
                               const SizedBox(height: 12),
                               SizedBox(
@@ -317,11 +331,16 @@ class _AccountSettingsPageState extends State<AccountSettingsPage> {
                                           height: 18,
                                           width: 18,
                                           child: CircularProgressIndicator(
-                                              strokeWidth: 2, color: Colors.red),
+                                            strokeWidth: 2,
+                                            color: Colors.red,
+                                          ),
                                         )
                                       : const Icon(Icons.logout),
                                   label: Text(
-                                      _isSigningOut ? 'Signing Out...' : l10n.logout),
+                                    _isSigningOut
+                                        ? 'Signing Out...'
+                                        : l10n.logout,
+                                  ),
                                   style: OutlinedButton.styleFrom(
                                     foregroundColor: Colors.red,
                                     side: const BorderSide(color: Colors.red),
@@ -371,7 +390,7 @@ class _AccountSettingsPageState extends State<AccountSettingsPage> {
                                   color: tileColor,
                                   borderRadius: BorderRadius.circular(12),
                                   border: Border.all(
-                                    color: Colors.blue.withOpacity(0.3),
+                                    color: Colors.blue.withValues(alpha: 0.3),
                                   ),
                                 ),
                                 child: Column(

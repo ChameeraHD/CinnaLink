@@ -80,7 +80,7 @@ class _LandownerDetailsPageState extends State<LandownerDetailsPage> {
   Widget build(BuildContext context) {
     // 2. Initialize the localization shortcut
     final l10n = AppLocalizations.of(context)!;
-    
+
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final shellTopColors = isDark
         ? const [Color(0xFF1A130F), Color(0xFF352417)]
@@ -110,20 +110,26 @@ class _LandownerDetailsPageState extends State<LandownerDetailsPage> {
                             Container(
                               decoration: BoxDecoration(
                                 shape: BoxShape.circle,
-                                border: Border.all(color: Colors.white, width: 4),
+                                border: Border.all(
+                                  color: Colors.white,
+                                  width: 4,
+                                ),
                                 boxShadow: [
                                   BoxShadow(
-                                    color: Colors.black.withOpacity(0.2),
+                                    color: Colors.black.withValues(alpha: 0.2),
                                     blurRadius: 10,
                                     spreadRadius: 2,
-                                  )
+                                  ),
                                 ],
                               ),
                               child: const CircleAvatar(
                                 radius: 50,
                                 backgroundColor: Colors.white24,
-                                child: Icon(Icons.person, size: 50, color: Colors.white),
-                                
+                                child: Icon(
+                                  Icons.person,
+                                  size: 50,
+                                  color: Colors.white,
+                                ),
                               ),
                             ),
                             Positioned(
@@ -135,13 +141,19 @@ class _LandownerDetailsPageState extends State<LandownerDetailsPage> {
                                 decoration: BoxDecoration(
                                   color: Theme.of(context).primaryColor,
                                   shape: BoxShape.circle,
-                                  border: Border.all(color: Colors.white, width: 2),
+                                  border: Border.all(
+                                    color: Colors.white,
+                                    width: 2,
+                                  ),
                                 ),
                                 child: IconButton(
                                   padding: EdgeInsets.zero,
-                                  icon: const Icon(Icons.camera_alt, size: 18, color: Colors.white),
-                                  onPressed: () {
-                                  },
+                                  icon: const Icon(
+                                    Icons.camera_alt,
+                                    size: 18,
+                                    color: Colors.white,
+                                  ),
+                                  onPressed: () {},
                                 ),
                               ),
                             ),
@@ -149,7 +161,7 @@ class _LandownerDetailsPageState extends State<LandownerDetailsPage> {
                         ),
                       ),
                       const SizedBox(height: 20),
-                      
+
                       Text(
                         l10n.myDetails, // UPDATED
                         style: const TextStyle(
@@ -161,7 +173,10 @@ class _LandownerDetailsPageState extends State<LandownerDetailsPage> {
                       const SizedBox(height: 8),
                       Text(
                         l10n.manageProfileDesc, // UPDATED (Add this to ARB)
-                        style: const TextStyle(fontSize: 16, color: Colors.white70),
+                        style: const TextStyle(
+                          fontSize: 16,
+                          color: Colors.white70,
+                        ),
                       ),
                       const SizedBox(height: 30),
                       Card(
@@ -312,7 +327,8 @@ class _LandownerDetailsPageState extends State<LandownerDetailsPage> {
                                   child: Padding(
                                     padding: const EdgeInsets.all(24.0),
                                     child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
                                       children: [
                                         const Text(
                                           'Ratings & Reviews',
@@ -330,12 +346,15 @@ class _LandownerDetailsPageState extends State<LandownerDetailsPage> {
                                         if (_currentUserId.isEmpty)
                                           const Text(
                                             'Unable to load ratings right now.',
-                                            style: TextStyle(color: Colors.grey),
+                                            style: TextStyle(
+                                              color: Colors.grey,
+                                            ),
                                           )
                                         else
                                           ProfileReviewsSection(
                                             userId: _currentUserId,
-                                            summaryTitle: 'Overall worker feedback',
+                                            summaryTitle:
+                                                'Overall worker feedback',
                                           ),
                                       ],
                                     ),

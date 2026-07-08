@@ -2912,8 +2912,22 @@ class _ApprovedJobsPageState extends State<ApprovedJobsPage> {
   }
 
   Widget _buildProgressHistory(String applicationId) {
+    final workerId = AuthService.currentUserId;
+    if (workerId == null) {
+      return const Padding(
+        padding: EdgeInsets.only(top: 8),
+        child: Text(
+          'Please sign in again to load progress history.',
+          style: TextStyle(color: Colors.grey),
+        ),
+      );
+    }
+
     return StreamBuilder<List<TaskProgressRecord>>(
-      stream: JobRepository.streamProgressForApplication(applicationId),
+      stream: JobRepository.streamProgressForApplication(
+        applicationId,
+        workerId,
+      ),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Padding(
