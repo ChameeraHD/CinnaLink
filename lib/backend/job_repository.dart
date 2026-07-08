@@ -959,13 +959,6 @@ class JobRepository {
         'createdAt': now,
         'updatedAt': now,
       });
-
-      final currentApplicantCount =
-          ((freshJobData['applicantCount'] as num?) ?? 0).toInt();
-      transaction.update(jobRef, {
-        'applicantCount': currentApplicantCount + 1,
-        'updatedAt': now,
-      });
     });
   }
 
@@ -2417,11 +2410,6 @@ class JobRepository {
       'memberCount': memberIds.length,
       'status': 'submitted',
       'createdAt': now,
-      'updatedAt': now,
-    });
-
-    await jobRef.update({
-      'groupApplicantCount': FieldValue.increment(1),
       'updatedAt': now,
     });
   }
