@@ -18,27 +18,52 @@ service cloud.firestore {
     }
 
     function isLandownerForJob(jobId) {
-      return signedIn()
-        && get(/databases/$(database)/documents/jobs/$(jobId)).data.landownerId == request.auth.uid;
+      return signedIn() && (
+        exists(/databases/$(database)/documents/jobs/$(jobId)) &&
+        get(/databases/$(database)/documents/jobs/$(jobId)).data.landownerId == request.auth.uid
+      );
+    }
+
+    function isLandownerForApplication(applicationId) {
+      return signedIn() && (
+        exists(/databases/$(database)/documents/applications/$(applicationId)) &&
+        exists(/databases/$(database)/documents/jobs/$(get(/databases/$(database)/documents/applications/$(applicationId)).data.jobId)) &&
+        get(/databases/$(database)/documents/jobs/$(get(/databases/$(database)/documents/applications/$(applicationId)).data.jobId)).data.landownerId == request.auth.uid
+      );
+    }
+
+    function isLandownerForGroupApplication(groupApplicationId) {
+      return signedIn() && (
+        exists(/databases/$(database)/documents/group_applications/$(groupApplicationId)) &&
+        exists(/databases/$(database)/documents/jobs/$(get(/databases/$(database)/documents/group_applications/$(groupApplicationId)).data.jobId)) &&
+        get(/databases/$(database)/documents/jobs/$(get(/databases/$(database)/documents/group_applications/$(groupApplicationId)).data.jobId)).data.landownerId == request.auth.uid
+      );
     }
 
     function isWorkerForApplication(applicationId) {
-      return signedIn()
-        && get(/databases/$(database)/documents/applications/$(applicationId)).data.workerId == request.auth.uid;
+      return signedIn() && (
+        exists(/databases/$(database)/documents/applications/$(applicationId)) &&
+        get(/databases/$(database)/documents/applications/$(applicationId)).data.workerId == request.auth.uid
+      );
     }
 
-    function isWorkerForGroupApplication(groupApplicationId) {
-      return signedIn()
-        && get(/databases/$(database)/documents/group_applications/$(groupApplicationId)).data.memberIds.hasAny([request.auth.uid]);
+    function isAcceptedWorkerForJob(jobId) {
+      return signedIn() && exists(/databases/$(database)/documents/jobs/$(jobId)) && (
+        request.resource.data.acceptedWorkerId == request.auth.uid ||
+        request.resource.data.acceptedByCoordinatorId == request.auth.uid ||
+        request.resource.data.acceptedWorkerIds.hasAny([request.auth.uid]) ||
+        get(/databases/$(database)/documents/jobs/$(jobId)).data.landownerId == request.auth.uid
+      );
     }
 
     function isParticipantForProgress(progressId) {
-      return signedIn()
-        && (
-          resource.data.workerId == request.auth.uid
-          || isLandownerForJob(resource.data.jobId)
-          || isAdmin()
-        );
+      return signedIn() && (
+        exists(/databases/$(database)/documents/task_progress/$(progressId)) && (
+          resource.data.workerId == request.auth.uid ||
+          isLandownerForJob(resource.data.jobId) ||
+          isAdmin()
+        )
+      );
     }
 
     match /users/{userId} {
@@ -49,19 +74,19 @@ service cloud.firestore {
     match /jobs/{jobId} {
       allow read: if signedIn();
       allow create: if signedIn() && request.resource.data.landownerId == request.auth.uid;
-      allow update, delete: if isLandownerForJob(jobId) || isAdmin();
+      allow update, delete: if isLandownerForJob(jobId) || isAdmin() || isAcceptedWorkerForJob(jobId);
     }
 
     match /applications/{applicationId} {
       allow read: if signedIn() && (
         resource.data.workerId == request.auth.uid ||
-        resource.data.landownerId == request.auth.uid ||
+        isLandownerForApplication(applicationId) ||
         isAdmin()
       );
       allow create: if signedIn() && request.resource.data.workerId == request.auth.uid;
       allow update, delete: if signedIn() && (
         resource.data.workerId == request.auth.uid ||
-        resource.data.landownerId == request.auth.uid ||
+        isLandownerForApplication(applicationId) ||
         isAdmin()
       );
     }
@@ -70,13 +95,14 @@ service cloud.firestore {
       allow read: if signedIn() && (
         resource.data.coordinatorId == request.auth.uid ||
         resource.data.memberIds.hasAny([request.auth.uid]) ||
-        resource.data.landownerId == request.auth.uid ||
+        isLandownerForGroupApplication(groupApplicationId) ||
         isAdmin()
       );
       allow create: if signedIn() && request.resource.data.coordinatorId == request.auth.uid;
       allow update, delete: if signedIn() && (
         resource.data.coordinatorId == request.auth.uid ||
-        resource.data.landownerId == request.auth.uid ||
+        resource.data.memberIds.hasAny([request.auth.uid]) ||
+        isLandownerForGroupApplication(groupApplicationId) ||
         isAdmin()
       );
     }
@@ -120,7 +146,8 @@ service cloud.firestore {
     }
 
     match /{document=**} {
-      allow read, write: if isAdmin();
+      allow read: if signedIn();
+      allow write: if isAdmin();
     }
   }
 }

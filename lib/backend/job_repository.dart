@@ -1,4 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 
 class JobRecord {
@@ -410,17 +412,116 @@ class JobRepository {
     return decisionDeadline.isBefore(DateTime.now());
   }
 
+  static Future<List<QueryDocumentSnapshot<Map<String, dynamic>>>>
+  _getVisibleApprovedApplicationsForCurrentUser() async {
+    final currentUserId = FirebaseAuth.instance.currentUser?.uid;
+    if (currentUserId == null || currentUserId.isEmpty) {
+      return const <QueryDocumentSnapshot<Map<String, dynamic>>>[];
+    }
+
+    final visibleDocs = <QueryDocumentSnapshot<Map<String, dynamic>>>[];
+    final seenIds = <String>{};
+
+    Future<void> addDocs(
+      List<QueryDocumentSnapshot<Map<String, dynamic>>> docs,
+    ) async {
+      for (final doc in docs) {
+        if (seenIds.add(doc.id)) {
+          visibleDocs.add(doc);
+        }
+      }
+    }
+
+    final workerApps = await _applicationsCollection
+        .where('status', isEqualTo: 'approved')
+        .where('workerId', isEqualTo: currentUserId)
+        .get();
+    await addDocs(workerApps.docs);
+
+    final ownerJobs = await _jobsCollection
+        .where('landownerId', isEqualTo: currentUserId)
+        .get();
+    if (ownerJobs.docs.isNotEmpty) {
+      final jobIds = ownerJobs.docs.map((doc) => doc.id).toList(growable: false);
+      for (final jobId in jobIds) {
+        final ownerApps = await _applicationsCollection
+            .where('status', isEqualTo: 'approved')
+            .where('jobId', isEqualTo: jobId)
+            .get();
+        await addDocs(ownerApps.docs);
+      }
+    }
+
+    return visibleDocs;
+  }
+
+  static Future<List<QueryDocumentSnapshot<Map<String, dynamic>>>>
+  _getVisibleApprovedGroupApplicationsForCurrentUser() async {
+    final currentUserId = FirebaseAuth.instance.currentUser?.uid;
+    if (currentUserId == null || currentUserId.isEmpty) {
+      return const <QueryDocumentSnapshot<Map<String, dynamic>>>[];
+    }
+
+    final visibleDocs = <QueryDocumentSnapshot<Map<String, dynamic>>>[];
+    final seenIds = <String>{};
+
+    Future<void> addDocs(
+      List<QueryDocumentSnapshot<Map<String, dynamic>>> docs,
+    ) async {
+      for (final doc in docs) {
+        if (seenIds.add(doc.id)) {
+          visibleDocs.add(doc);
+        }
+      }
+    }
+
+    final coordinatorApps = await _groupApplicationsCollection
+        .where('status', isEqualTo: 'approved')
+        .where('coordinatorId', isEqualTo: currentUserId)
+        .get();
+    await addDocs(coordinatorApps.docs);
+
+    final memberApps = await _groupApplicationsCollection
+        .where('status', isEqualTo: 'approved')
+        .where('memberIds', arrayContains: currentUserId)
+        .get();
+    await addDocs(memberApps.docs);
+
+    final ownerJobs = await _jobsCollection
+        .where('landownerId', isEqualTo: currentUserId)
+        .get();
+    if (ownerJobs.docs.isNotEmpty) {
+      final jobIds = ownerJobs.docs.map((doc) => doc.id).toList(growable: false);
+      for (final jobId in jobIds) {
+        final ownerApps = await _groupApplicationsCollection
+            .where('status', isEqualTo: 'approved')
+            .where('jobId', isEqualTo: jobId)
+            .get();
+        await addDocs(ownerApps.docs);
+      }
+    }
+
+    return visibleDocs;
+  }
+
   /// Auto-declines individual applications that have expired (72 hours passed without worker acceptance)
   static Future<void> _autoDeclineExpiredIndividualApplications() async {
     try {
-      final expiredApps = await _applicationsCollection
-          .where('status', isEqualTo: 'approved')
-          .get();
+      if (Firebase.apps.isEmpty) {
+        return;
+      }
+
+      final currentUserId = FirebaseAuth.instance.currentUser?.uid;
+      if (currentUserId == null || currentUserId.isEmpty) {
+        return;
+      }
+
+      final expiredApps = await _getVisibleApprovedApplicationsForCurrentUser();
 
       final batch = _firestore.batch();
       final now = DateTime.now();
 
-      for (final doc in expiredApps.docs) {
+      for (final doc in expiredApps) {
         final data = doc.data();
         final deadline = (data['decisionDeadline'] as Timestamp?)?.toDate();
 
@@ -432,7 +533,7 @@ class JobRepository {
         }
       }
 
-      if (expiredApps.docs.isNotEmpty) {
+      if (expiredApps.isNotEmpty) {
         await batch.commit();
       }
     } catch (e) {
@@ -443,14 +544,21 @@ class JobRepository {
   /// Auto-declines group applications that have expired (72 hours passed without coordinator acceptance)
   static Future<void> _autoDeclineExpiredGroupApplications() async {
     try {
-      final expiredApps = await _groupApplicationsCollection
-          .where('status', isEqualTo: 'approved')
-          .get();
+      if (Firebase.apps.isEmpty) {
+        return;
+      }
+
+      final currentUserId = FirebaseAuth.instance.currentUser?.uid;
+      if (currentUserId == null || currentUserId.isEmpty) {
+        return;
+      }
+
+      final expiredApps = await _getVisibleApprovedGroupApplicationsForCurrentUser();
 
       final batch = _firestore.batch();
       final now = DateTime.now();
 
-      for (final doc in expiredApps.docs) {
+      for (final doc in expiredApps) {
         final data = doc.data();
         final deadline = (data['decisionDeadline'] as Timestamp?)?.toDate();
 
@@ -462,7 +570,7 @@ class JobRepository {
         }
       }
 
-      if (expiredApps.docs.isNotEmpty) {
+      if (expiredApps.isNotEmpty) {
         await batch.commit();
       }
     } catch (e) {
@@ -1138,6 +1246,11 @@ class JobRepository {
     // Update the job status to 'accepted' when an application is accepted
     batch.update(_jobsCollection.doc(selectedData['jobId']), {
       'status': 'accepted',
+      'acceptedWorkerId': workerId,
+      'acceptedWorkerIds': [workerId],
+      'acceptedWorkerName': selectedData['workerName'] ?? 'Worker',
+      'acceptedBy': 'worker',
+      'acceptedAt': now,
       'updatedAt': now,
     });
 
@@ -2640,6 +2753,11 @@ class JobRepository {
     // Update the job status to 'accepted' when a group application is accepted
     batch.update(_jobsCollection.doc(jobId), {
       'status': 'accepted',
+      'acceptedWorkerIds': memberIds,
+      'acceptedBy': 'group',
+      'acceptedAt': now,
+      'acceptedGroupApplicationId': groupApplicationId,
+      'acceptedByCoordinatorId': appData['coordinatorId'],
       'updatedAt': now,
     });
 
@@ -3104,6 +3222,11 @@ class JobRepository {
     // Update the job status to 'accepted'
     batch.update(_jobsCollection.doc(jobId), {
       'status': 'accepted',
+      'acceptedWorkerIds': memberIds,
+      'acceptedBy': 'group',
+      'acceptedAt': now,
+      'acceptedGroupApplicationId': groupApplicationId,
+      'acceptedByCoordinatorId': appData['coordinatorId'],
       'updatedAt': now,
     });
 
@@ -3150,6 +3273,15 @@ class JobRepository {
   /// Public method to manually trigger auto-decline of expired applications.
   /// Call this periodically or during app startup to ensure expired applications are declined.
   static Future<void> autoDeclineExpiredApplications() async {
+    if (Firebase.apps.isEmpty) {
+      return;
+    }
+
+    final currentUserId = FirebaseAuth.instance.currentUser?.uid;
+    if (currentUserId == null || currentUserId.isEmpty) {
+      return;
+    }
+
     await Future.wait([
       _autoDeclineExpiredIndividualApplications(),
       _autoDeclineExpiredGroupApplications(),
